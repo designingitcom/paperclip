@@ -39,7 +39,7 @@ import {
   updateToolProfileWithEntriesSchema,
 } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
-import { getActorInfo, assertBoard, assertCompanyAccess } from "./authz.js";
+import { getAccessibleResource, getActorInfo, assertBoard, assertCompanyAccess } from "./authz.js";
 import { badRequest, forbidden, unprocessable } from "../errors.js";
 import { accessService, googleSheetsRobotEmailFromEnv, logActivity, toolAccessPolicyService, toolAccessService } from "../services/index.js";
 import { ToolGatewayHttpError, type ToolGatewayService } from "../services/tool-gateway.js";
@@ -515,15 +515,25 @@ export function toolAccessRoutes(
 
   router.get("/tool-connections/:connectionId", async (req, res) => {
     assertBoard(req);
-    const connection = await svc.getConnection(req.params.connectionId as string);
-    assertCompanyAccess(req, connection.companyId);
+    const connection = await getAccessibleResource(
+      req,
+      res,
+      svc.getConnection(req.params.connectionId as string),
+      "Tool connection not found",
+    );
+    if (!connection) return;
     res.json(connection);
   });
 
   router.get("/tool-connections/:connectionId/installs", async (req, res) => {
     assertBoard(req);
-    const connection = await svc.getConnection(req.params.connectionId as string);
-    assertCompanyAccess(req, connection.companyId);
+    const connection = await getAccessibleResource(
+      req,
+      res,
+      svc.getConnection(req.params.connectionId as string),
+      "Tool connection not found",
+    );
+    if (!connection) return;
     res.json({ connectionId: connection.id, installs: connection.installs ?? [] });
   });
 
@@ -742,15 +752,25 @@ export function toolAccessRoutes(
 
   router.get("/tool-connections/:connectionId/catalog", async (req, res) => {
     assertBoard(req);
-    const existing = await svc.getConnection(req.params.connectionId as string);
-    assertCompanyAccess(req, existing.companyId);
+    const existing = await getAccessibleResource(
+      req,
+      res,
+      svc.getConnection(req.params.connectionId as string),
+      "Tool connection not found",
+    );
+    if (!existing) return;
     res.json({ catalog: await svc.listCatalog(existing.id, existing.companyId) });
   });
 
   router.get("/tool-connections/:connectionId/activity", async (req, res) => {
     assertBoard(req);
-    const existing = await svc.getConnection(req.params.connectionId as string);
-    assertCompanyAccess(req, existing.companyId);
+    const existing = await getAccessibleResource(
+      req,
+      res,
+      svc.getConnection(req.params.connectionId as string),
+      "Tool connection not found",
+    );
+    if (!existing) return;
     const limitRaw = Number(req.query.limit ?? 20);
     const limit = Number.isFinite(limitRaw) ? limitRaw : 20;
     res.json(await svc.listConnectionActivity(existing.id, existing.companyId, limit));
@@ -765,8 +785,13 @@ export function toolAccessRoutes(
 
   router.get("/tool-profiles/:profileId/new-tools", async (req, res) => {
     assertBoard(req);
-    const existing = await svc.getProfile(req.params.profileId as string);
-    assertCompanyAccess(req, existing.companyId);
+    const existing = await getAccessibleResource(
+      req,
+      res,
+      svc.getProfile(req.params.profileId as string),
+      "Tool profile not found",
+    );
+    if (!existing) return;
     res.json(await svc.listProfileNewTools(existing.id, existing.companyId));
   });
 
