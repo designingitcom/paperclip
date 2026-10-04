@@ -4019,6 +4019,7 @@ export async function cleanupExecutionWorkspaceArtifacts(input: {
     projectId: string | null;
     projectWorkspaceId: string | null;
     sourceIssueId: string | null;
+    mode?: string | null;
     metadata?: Record<string, unknown> | null;
   };
   projectWorkspace?: {
@@ -4221,8 +4222,10 @@ export async function cleanupExecutionWorkspaceArtifacts(input: {
     }
   }
 
+  const sharedWorkspaceSession = input.workspace.mode === "shared_workspace";
   const cleaned =
     !workspacePath ||
+    sharedWorkspaceSession ||
     !(await directoryExists(workspacePath));
 
   return {
