@@ -147,11 +147,7 @@ function Setup({
   const [providerBinding, setProviderBinding] = useState<EnvBinding | null>(
     null,
   );
-  const [runtimeAiBinding, setRuntimeAiBinding] = useState<AiConnectionBinding | undefined>(() =>
-    brandType === "opencode_local"
-      ? { provider: "openrouter", method: "api_key", mode: "responsible_user" }
-      : undefined,
-  );
+  const [runtimeAiBinding, setRuntimeAiBinding] = useState<AiConnectionBinding | undefined>();
   const [connection, setConnection] = useState<ProviderConnection | null>(null);
   const aiBinding = runtimeAiBinding ?? connection?.aiConnection;
   const [repository, setRepository] = useState("");
@@ -326,6 +322,10 @@ function Setup({
     (!(managedOnly || forced.forced) || environmentId),
   );
   const busy = testState === "running" || saving;
+  // OpenCode accepts provider credentials directly as run-scoped environment
+  // bindings. Do not mount AiConnectionField here: it defaults to a managed
+  // OpenRouter binding, which hides the explicit provider/secret selector.
+  const requiresManagedAiConnection = brandType !== "opencode_local";
 
   function buildConfig(
     nextConnection = connection,
@@ -349,6 +349,25 @@ function Setup({
         : {}),
     };
     const config = getUIAdapter(adapterType).buildAdapterConfig(values);
+    if (adapterType === "opencode_local" && provider === "aisa") {
+      config.env = {
+        ...((config.env as object) ?? {}),
+        PAPERCLIP_OPENCODE_PROVIDERS: {
+          type: "plain",
+          value: JSON.stringify({
+            aisa: {
+              npm: "@ai-sdk/openai-compatible",
+              name: "AISA",
+              options: {
+                baseURL: "https://api.aisa.one/v1",
+                apiKey: "{env:AISA_API_KEY}",
+              },
+              models: {},
+            },
+          }),
+        },
+      };
+    }
     if (isRunner)
       Object.assign(config, {
         provider: (runnerProvider === "claude" || runnerProvider === "grok") ? "acpx" : runnerProvider,
@@ -833,7 +852,7 @@ function Setup({
                     <fieldset disabled={busy} className="space-y-8">
                       <section className="space-y-5">
                         <h3 className="text-sm font-semibold">Runtime</h3>
-                        {aiProviderForAdapter(brandType) && (
+                        {aiProviderForAdapter(brandType) && requiresManagedAiConnection && (
                           connection && !aiBinding ? (
                             <div className="space-y-3">
                               <p className="text-sm text-muted-foreground">
@@ -946,6 +965,7 @@ function Setup({
                                                 google: "Google",
                                                 xai: "xAI",
                                                 groq: "Groq",
+                                                aisa: "AISA",
                                                 opencode: "OpenCode",
                                               }[key] ?? key)}
                                     </option>

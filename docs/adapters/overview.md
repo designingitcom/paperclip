@@ -147,6 +147,15 @@ specific agent as runtime environment variables (for example `AISA_API_KEY` or
 `.env` file, or the Paperclip service environment. Non-secret provider settings
 may refer to the bound secret with `{env:VARIABLE_NAME}`.
 
+### AISA through OpenCode
+
+For AISA, create an `opencode_local` agent, select **AISA** as the API key
+provider, bind its `AISA_API_KEY` Company Secret, and enter an explicit model
+in `aisa/model-id` form (for example `aisa/glm-5.2`). Paperclip injects the
+OpenAI-compatible AISA base URL only for that agent run; the provider key is
+never written to the project or the host service environment. Always use the
+agent setup **Run test** action before approving the agent or assigning work.
+
 ## Feedback Granularity
 
 Adapter choice determines how much structured, live detail a run's transcript can show while the agent is still working. Every adapter's stdout is streamed to the run log and rendered live in the UI — including runs on sandbox execution targets, whose logs are tailed and delivered incrementally — but the *granularity* of what you see depends on the event stream the adapter emits.

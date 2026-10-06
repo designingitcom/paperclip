@@ -1,6 +1,7 @@
 import { secretsApi } from "../api/secrets";
 
 export const PROVIDER_ENV_KEYS: Record<string, string> = {
+  aisa: "AISA_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
