@@ -20207,6 +20207,9 @@ export function heartbeatService(
     }
 
     let legacyAdapterEntered = false;
+    let legacyRunSpan: ReturnType<
+      ReturnType<typeof getStartupTraceContext>["tracer"]["startSpan"]
+    > | null = null;
     let run = await getRun(runId);
     if (!run) return;
     if (run.status !== "queued" && run.status !== "running") return;
@@ -24479,8 +24482,10 @@ export function heartbeatService(
         // Native runs already create a rich task.run trace. Older adapter
         // runs need one compact root span so operators can inspect provider
         // outcomes without exporting prompts, logs, IDs, or secret material.
-        const legacyRunTrace = getStartupTraceContext("paperclip.legacy-agent-run");
-        const legacyRunSpan =
+        const legacyRunTrace = getStartupTraceContext(
+          "paperclip.legacy-agent-run",
+        );
+        legacyRunSpan =
           nativeRuntimeResolution.kind === "legacy"
             ? legacyRunTrace.tracer.startSpan(
                 "paperclip.agent_run",
@@ -26026,12 +26031,6 @@ export function heartbeatService(
           nativeTerminalFailureCode ??
           "adapter_failed";
         logger.error({ err, runId }, "heartbeat execution failed");
-        if (legacyRunSpan) {
-          legacyRunSpan.setAttribute("paperclip.agent.outcome", failureOutcome);
-          legacyRunSpan.setAttribute("paperclip.agent.error_code", failureErrorCode);
-          legacyRunSpan.setStatus({ code: 2 });
-          legacyRunSpan.end();
-        }
 
         let logSummary: {
           bytes: number | null;
@@ -26062,6 +26061,12 @@ export function heartbeatService(
         const stoppedDuringFailure = executionControl.controller.signal.aborted;
         const stopSnapshot = stoppedDuringFailure ? await getRun(run.id) : null;
         const failureOutcome = stoppedDuringFailure ? "cancelled" : "failed";
+        if (legacyRunSpan) {
+          legacyRunSpan.setAttribute("paperclip.agent.outcome", failureOutcome);
+          legacyRunSpan.setAttribute("paperclip.agent.error_code", failureErrorCode);
+          legacyRunSpan.setStatus({ code: 2 });
+          legacyRunSpan.end();
+        }
         const failedRunWrite = await setRunStatusIfRunning(run.id, failureOutcome, {
           error: message,
           errorCode: stopSnapshot?.errorCode ?? failureErrorCode,
