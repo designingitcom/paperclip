@@ -40,6 +40,7 @@ import { checkExactPeerVersions } from "./peer-version-check.js";
 export { checkExactPeerVersions } from "./peer-version-check.js";
 
 const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+const runsOnly = process.env.PAPERCLIP_OTEL_RUNS_ONLY === "1";
 
 let sdkShutdown: (() => Promise<void>) | null = null;
 let shutdownPromise: Promise<void> | null = null;
@@ -508,15 +509,20 @@ async function bootstrapOtel(endpoint: string): Promise<void> {
       traceExporter: (protocol === "grpc"
         ? new OTLPTraceExporter({ url: endpoint })
         : new OTLPTraceExporter()) as never,
-      instrumentations: [
-        getNodeAutoInstrumentations({
-          // Too chatty for this workload.
-          "@opentelemetry/instrumentation-fs": { enabled: false },
-          "@opentelemetry/instrumentation-dns": { enabled: false },
-          "@opentelemetry/instrumentation-net": { enabled: false },
-        }),
-      ],
+      // Paperclip's manual run spans are useful for agent operations; automatic
+      // HTTP spans are not. Operators can opt into this mode to avoid sending
+      // every UI polling request to their tracing backend.
+      instrumentations: runsOnly
+        ? []
+        : [
+            getNodeAutoInstrumentations({
+              "@opentelemetry/instrumentation-fs": { enabled: false },
+              "@opentelemetry/instrumentation-dns": { enabled: false },
+              "@opentelemetry/instrumentation-net": { enabled: false },
+            }),
+          ],
     });
+    if (runsOnly) console.log("[paperclip] OpenTelemetry runs-only mode enabled");
 
     try {
       sdk.start();

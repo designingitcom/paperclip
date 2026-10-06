@@ -24476,6 +24476,23 @@ export function heartbeatService(
         const runGoalControlRequestId = readNonEmptyString(
           context.goalControlRequestId,
         );
+        // Native runs already create a rich task.run trace. Older adapter
+        // runs need one compact root span so operators can inspect provider
+        // outcomes without exporting prompts, logs, IDs, or secret material.
+        const legacyRunTrace = getStartupTraceContext("paperclip.legacy-agent-run");
+        const legacyRunSpan =
+          nativeRuntimeResolution.kind === "legacy"
+            ? legacyRunTrace.tracer.startSpan(
+                "paperclip.agent_run",
+                {
+                  attributes: {
+                    "paperclip.agent.adapter": agent.adapterType,
+                    "paperclip.agent.runtime": "legacy",
+                    "paperclip.agent.retry_attempt": executionFailureRetryCount(run),
+                  },
+                },
+              )
+            : null;
         try {
           if (nativeRuntimeResolution.kind === "native") {
             if (!nativeExecution || !nativeRunnerInstanceId)
@@ -24855,7 +24872,24 @@ export function heartbeatService(
                 },
               );
             if (!guardedDispatch.dispatched) return;
-            adapterResult = await guardedDispatch.resultPromise;
+            const legacyAdapterSpan = legacyRunTrace.tracer.startSpan(
+              "paperclip.adapter_execute",
+              {
+                attributes: {
+                  "paperclip.agent.adapter": agent.adapterType,
+                },
+              },
+              legacyRunTrace.contextWithSpan(legacyRunSpan),
+            );
+            try {
+              adapterResult = await guardedDispatch.resultPromise;
+              legacyAdapterSpan.setStatus({ code: 1 });
+            } catch (error) {
+              legacyAdapterSpan.setStatus({ code: 2 });
+              throw error;
+            } finally {
+              legacyAdapterSpan.end();
+            }
           }
           if (instructionSave) adapterResult.resultJson = { ...adapterResult.resultJson, instructionSave };
           adapterResult = applyWorkspaceRestoreFailure(adapterResult);
@@ -25349,6 +25383,23 @@ export function heartbeatService(
                 ),
               } as Record<string, unknown>)
             : null;
+        if (legacyRunSpan) {
+          legacyRunSpan.setAttribute("paperclip.agent.outcome", outcome);
+          legacyRunSpan.setAttribute("paperclip.agent.status", status);
+          legacyRunSpan.setAttribute(
+            "paperclip.agent.provider",
+            readNonEmptyString(adapterResult.provider) ?? "unknown",
+          );
+          legacyRunSpan.setAttribute(
+            "paperclip.agent.model",
+            readNonEmptyString(adapterResult.model) ?? "unknown",
+          );
+          legacyRunSpan.setAttribute("paperclip.agent.input_tokens", normalizedUsage?.inputTokens ?? 0);
+          legacyRunSpan.setAttribute("paperclip.agent.output_tokens", normalizedUsage?.outputTokens ?? 0);
+          legacyRunSpan.setAttribute("paperclip.agent.cost_usd", cacheAdjustedCostUsd ?? 0);
+          if (outcome !== "succeeded") legacyRunSpan.setStatus({ code: 2 });
+          legacyRunSpan.end();
+        }
 
         const persistedResultJson = mergeHeartbeatRunResultJson(
           mergeRunStopMetadataForAgent(agent, outcome, {
@@ -25975,6 +26026,12 @@ export function heartbeatService(
           nativeTerminalFailureCode ??
           "adapter_failed";
         logger.error({ err, runId }, "heartbeat execution failed");
+        if (legacyRunSpan) {
+          legacyRunSpan.setAttribute("paperclip.agent.outcome", failureOutcome);
+          legacyRunSpan.setAttribute("paperclip.agent.error_code", failureErrorCode);
+          legacyRunSpan.setStatus({ code: 2 });
+          legacyRunSpan.end();
+        }
 
         let logSummary: {
           bytes: number | null;
