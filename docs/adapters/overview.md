@@ -122,6 +122,31 @@ my-adapter/
 - **Need to call a custom external service?** Use `http`
 - **Need something custom?** [Create your own adapter](/adapters/creating-an-adapter) or [build an external adapter plugin](/adapters/external-adapters)
 
+## OpenCode host runtime and provider secrets
+
+`opencode_local` is a host-local adapter. Its runtime must be installed once on
+the Paperclip host and be visible to the `paperclip` service account. The
+standard deployment is the global npm package `opencode-ai`, whose executable is
+at `/usr/local/bin/opencode`.
+
+```sh
+# Verify the exact runtime Paperclip will execute
+sudo -u paperclip -H opencode --version
+
+# Deliberately update the host runtime
+npm install -g opencode-ai@latest
+```
+
+Do not install a separate OpenCode copy inside a project, an agent workspace, or
+a sandbox merely to use this adapter. The agent's adapter configuration selects
+the provider/model; the host executable supplies the runtime.
+
+Provider API keys must be stored as Paperclip Company Secrets and bound to the
+specific agent as runtime environment variables (for example `AISA_API_KEY` or
+`OPENROUTER_API_KEY`). Never put a provider key in source control, a project
+`.env` file, or the Paperclip service environment. Non-secret provider settings
+may refer to the bound secret with `{env:VARIABLE_NAME}`.
+
 ## Feedback Granularity
 
 Adapter choice determines how much structured, live detail a run's transcript can show while the agent is still working. Every adapter's stdout is streamed to the run log and rendered live in the UI — including runs on sandbox execution targets, whose logs are tailed and delivered incrementally — but the *granularity* of what you see depends on the event stream the adapter emits.
