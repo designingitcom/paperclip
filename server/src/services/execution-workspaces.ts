@@ -3263,9 +3263,11 @@ export function executionWorkspaceService(db: Db, opts: ExecutionWorkspaceServic
           .from(executionWorkspaces)
           .where(eq(executionWorkspaces.id, input.id))
           .then((rows) => rows[0] ?? null);
-        if (!fresh || isClosedExecutionWorkspaceStatus(fresh.status)) {
-          // The row is missing or already closed by a concurrent path. Do not
-          // archive again.
+        if (!fresh || fresh.status === "archived") {
+          // A missing row or a fully archived row has nothing left to close.
+          // cleanup_failed is deliberately retryable: the close UI exposes
+          // “Retry close”, and the same lifecycle fence must be allowed to
+          // rerun its cleanup for a previously failed attempt.
           return null;
         }
         if (metadataHasReopenPendingConsumption(fresh.metadata as Record<string, unknown> | null)) {

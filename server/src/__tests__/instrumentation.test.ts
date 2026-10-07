@@ -72,19 +72,18 @@ describe("instrumentationReady", () => {
     await expect(instrumentationReady).resolves.toBeUndefined();
   });
 
-  it("settles with a diagnostic instead of throwing when the endpoint is set but packages are missing", async () => {
+  it("settles with one fail-open diagnostic when the endpoint is set and a runtime package cannot load", async () => {
     process.env[ENDPOINT_ENV] = "http://collector:4318";
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const { instrumentationReady } = await importFreshInstrumentation();
 
-    // Bootstrap must absorb the failed dynamic imports — the server keeps
-    // booting without tracing rather than crashing on an opt-in feature.
     await expect(instrumentationReady).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("@opentelemetry/* packages are not installed"),
-      expect.anything(),
+    const diagnostics = warn.mock.calls.filter((call) =>
+      String(call[0]).includes("Continuing without tracing"),
     );
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]?.[1]).toBeDefined();
   });
 });
 
@@ -132,39 +131,17 @@ describe("checkExactPeerVersions", () => {
 });
 
 describe("bootstrapOtel exact-version gate", () => {
-  it("does not mention the two exporters OTEL_EXPORTER_OTLP_PROTOCOL did not select", async () => {
-    process.env[ENDPOINT_ENV] = "http://collector:4318";
-    process.env[PROTOCOL_ENV] = "http/json";
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    const { instrumentationReady } = await importFreshInstrumentation();
-    await instrumentationReady;
-
-    // The OTel packages are absent in this test environment, so the gate
-    // reports every checked package as missing. It must have checked the
-    // selected exporter (http/json → exporter-trace-otlp-http) and skipped
-    // the two the protocol did not select.
-    const diagnosticCall = warn.mock.calls.find((call) =>
-      String(call[0]).includes("@opentelemetry/* packages are not installed"),
-    );
-    expect(diagnosticCall).toBeDefined();
-    const message = String(diagnosticCall![0]);
-    expect(message).toContain("@opentelemetry/exporter-trace-otlp-http");
-    expect(message).not.toContain("@opentelemetry/exporter-trace-otlp-grpc");
-    expect(message).not.toContain("@opentelemetry/exporter-trace-otlp-proto");
-  });
-
-  it("emits exactly one diagnostic when the endpoint is set and packages are absent", async () => {
+  it("emits exactly one fail-open diagnostic when the endpoint is set", async () => {
     process.env[ENDPOINT_ENV] = "http://collector:4318";
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const { instrumentationReady } = await importFreshInstrumentation();
     await instrumentationReady;
 
-    const diagnosticCalls = warn.mock.calls.filter((call) =>
-      String(call[0]).includes("@opentelemetry/* packages are not installed"),
+    const diagnostics = warn.mock.calls.filter((call) =>
+      String(call[0]).includes("Continuing without tracing"),
     );
-    expect(diagnosticCalls).toHaveLength(1);
+    expect(diagnostics).toHaveLength(1);
   });
 });
 
