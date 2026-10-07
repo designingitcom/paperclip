@@ -364,11 +364,11 @@ export function resolveProtocol(): {
   }
 }
 
-async function importOptionalPackage(packageName: string): Promise<unknown> {
+async function importOptionalPackage<T>(packageName: string): Promise<T> {
   // Keep Vite/Vitest from resolving an unselected optional exporter before the
   // runtime version gate can report a clear, fail-open diagnostic. Node resolves
   // this only after the package was selected and verified.
-  return await import(/* @vite-ignore */ packageName);
+  return await import(/* @vite-ignore */ packageName) as T;
 }
 
 async function importExporter(protocol: ExporterProtocol): Promise<{
@@ -473,14 +473,14 @@ async function bootstrapOtel(endpoint: string): Promise<void> {
     const [sdkNode, autoInstr, traceExporter, resources, semconv] =
       await Promise.all([
         // @ts-ignore optional peer dep
-        importOptionalPackage("@opentelemetry/sdk-node"),
+        importOptionalPackage<typeof import("@opentelemetry/sdk-node")>("@opentelemetry/sdk-node"),
         // @ts-ignore optional peer dep
-        importOptionalPackage("@opentelemetry/auto-instrumentations-node"),
+        importOptionalPackage<typeof import("@opentelemetry/auto-instrumentations-node")>("@opentelemetry/auto-instrumentations-node"),
         importExporter(protocol),
         // @ts-ignore optional peer dep
-        importOptionalPackage("@opentelemetry/resources"),
+        importOptionalPackage<typeof import("@opentelemetry/resources")>("@opentelemetry/resources"),
         // @ts-ignore optional peer dep
-        importOptionalPackage("@opentelemetry/semantic-conventions"),
+        importOptionalPackage<typeof import("@opentelemetry/semantic-conventions")>("@opentelemetry/semantic-conventions"),
       ]);
 
     const { NodeSDK } = sdkNode;
