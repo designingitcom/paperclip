@@ -10,16 +10,20 @@ import { describe, expect, it } from "vitest";
  * the runtime half (the bootstrap fails open when a package is absent).
  */
 
-const OPTIONAL_OTEL_PACKAGES = [
+const RUNTIME_OTEL_PACKAGES = [
   "@opentelemetry/sdk-node",
   "@opentelemetry/auto-instrumentations-node",
   "@opentelemetry/resources",
   "@opentelemetry/semantic-conventions",
-  "@opentelemetry/exporter-trace-otlp-grpc",
   "@opentelemetry/exporter-trace-otlp-proto",
+] as const;
+
+const OPTIONAL_EXPORTER_PACKAGES = [
+  "@opentelemetry/exporter-trace-otlp-grpc",
   "@opentelemetry/exporter-trace-otlp-http",
 ] as const;
 
+const OTEL_PACKAGES = [...RUNTIME_OTEL_PACKAGES, ...OPTIONAL_EXPORTER_PACKAGES] as const;
 const packageJsonPath = fileURLToPath(new URL("../../package.json", import.meta.url));
 
 describe("server package OpenTelemetry peer metadata", () => {
@@ -30,19 +34,27 @@ describe("server package OpenTelemetry peer metadata", () => {
     peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   };
 
-  it.each(OPTIONAL_OTEL_PACKAGES)(
-    "declares %s as an optional peer dependency",
+  it.each(RUNTIME_OTEL_PACKAGES)(
+    "installs %s as a normal runtime dependency",
     (packageName) => {
-      expect(packageJson.peerDependencies?.[packageName]).toBeDefined();
-      expect(packageJson.peerDependenciesMeta?.[packageName]?.optional).toBe(true);
+      expect(packageJson.dependencies?.[packageName]).toBeDefined();
+      expect(packageJson.devDependencies?.[packageName]).toBeUndefined();
     },
   );
 
-  it.each(OPTIONAL_OTEL_PACKAGES)(
-    "does not list %s in dependencies or devDependencies",
+  it.each(OPTIONAL_EXPORTER_PACKAGES)(
+    "keeps %s out of normal dependencies",
     (packageName) => {
       expect(packageJson.dependencies?.[packageName]).toBeUndefined();
       expect(packageJson.devDependencies?.[packageName]).toBeUndefined();
+    },
+  );
+
+  it.each(OTEL_PACKAGES)(
+    "declares %s as an optional peer for compatible self-hosted installs",
+    (packageName) => {
+      expect(packageJson.peerDependencies?.[packageName]).toBeDefined();
+      expect(packageJson.peerDependenciesMeta?.[packageName]?.optional).toBe(true);
     },
   );
 
