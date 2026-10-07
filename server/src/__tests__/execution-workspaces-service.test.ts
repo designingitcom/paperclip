@@ -1469,6 +1469,35 @@ describeEmbeddedPostgres("executionWorkspaceService.getCloseReadiness", () => {
     await expect(fs.access(seeded.worktreePath)).resolves.toBeUndefined();
   });
 
+  it("retries a cleanup_failed workspace under the lifecycle lock", async () => {
+    // The close dialog intentionally offers “Retry close” after a cleanup
+    // failure. A retry must re-enter the same lifecycle-fenced archive path,
+    // rather than reporting the already-closed row as missing.
+    const seeded = await seedTerminalWorkspace({ mergedPr: true });
+    await db
+      .update(executionWorkspaces)
+      .set({
+        status: "cleanup_failed",
+        closedAt: new Date(Date.now() - 60_000),
+        cleanupReason: "previous cleanup attempt failed",
+      })
+      .where(eq(executionWorkspaces.id, seeded.executionWorkspaceId));
+
+    const result = await svc.archiveWorkspaceUnderLifecycleLock({
+      id: seeded.executionWorkspaceId,
+      patch: {},
+      closedAt: new Date(),
+    });
+
+    expect(result?.outcome).toBe("archived");
+    const [workspace] = await db
+      .select({ status: executionWorkspaces.status, cleanupReason: executionWorkspaces.cleanupReason })
+      .from(executionWorkspaces)
+      .where(eq(executionWorkspaces.id, seeded.executionWorkspaceId));
+    expect(workspace?.status).toBe("archived");
+    expect(workspace?.cleanupReason).toBeNull();
+  });
+
   it("refuses to archive a reopen-pending workspace and leaves the row unchanged", async () => {
     // Close the second destructive path. The archive route calls
     // archiveWorkspaceUnderLifecycleLock. A reopen published this row active with
