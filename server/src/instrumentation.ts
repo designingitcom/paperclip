@@ -364,19 +364,26 @@ export function resolveProtocol(): {
   }
 }
 
+async function importOptionalPackage(packageName: string): Promise<unknown> {
+  // Keep Vite/Vitest from resolving an unselected optional exporter before the
+  // runtime version gate can report a clear, fail-open diagnostic. Node resolves
+  // this only after the package was selected and verified.
+  return await import(/* @vite-ignore */ packageName);
+}
+
 async function importExporter(protocol: ExporterProtocol): Promise<{
   OTLPTraceExporter: new (config?: Record<string, unknown>) => unknown;
 }> {
   switch (protocol) {
     case "grpc":
       // @ts-ignore optional peer dep
-      return await import("@opentelemetry/exporter-trace-otlp-grpc");
+      return await importOptionalPackage("@opentelemetry/exporter-trace-otlp-grpc") as { OTLPTraceExporter: new (config?: Record<string, unknown>) => unknown };
     case "http/protobuf":
       // @ts-ignore optional peer dep
-      return await import("@opentelemetry/exporter-trace-otlp-proto");
+      return await importOptionalPackage("@opentelemetry/exporter-trace-otlp-proto") as { OTLPTraceExporter: new (config?: Record<string, unknown>) => unknown };
     case "http/json":
       // @ts-ignore optional peer dep
-      return await import("@opentelemetry/exporter-trace-otlp-http");
+      return await importOptionalPackage("@opentelemetry/exporter-trace-otlp-http") as { OTLPTraceExporter: new (config?: Record<string, unknown>) => unknown };
   }
 }
 
@@ -466,14 +473,14 @@ async function bootstrapOtel(endpoint: string): Promise<void> {
     const [sdkNode, autoInstr, traceExporter, resources, semconv] =
       await Promise.all([
         // @ts-ignore optional peer dep
-        import("@opentelemetry/sdk-node"),
+        importOptionalPackage("@opentelemetry/sdk-node"),
         // @ts-ignore optional peer dep
-        import("@opentelemetry/auto-instrumentations-node"),
+        importOptionalPackage("@opentelemetry/auto-instrumentations-node"),
         importExporter(protocol),
         // @ts-ignore optional peer dep
-        import("@opentelemetry/resources"),
+        importOptionalPackage("@opentelemetry/resources"),
         // @ts-ignore optional peer dep
-        import("@opentelemetry/semantic-conventions"),
+        importOptionalPackage("@opentelemetry/semantic-conventions"),
       ]);
 
     const { NodeSDK } = sdkNode;
