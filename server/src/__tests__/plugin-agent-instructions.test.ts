@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 const store = vi.hoisted(() => ({ locked: vi.fn(), write: vi.fn(), inspect: vi.fn() }));
+const github = vi.hoisted(() => ({ create: vi.fn(), read: vi.fn() }));
+vi.mock("../services/skill-source-github-access.js", () => ({ skillSourceGitHubReader: github.create }));
 vi.mock("../services/agent-file-store.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../services/agent-file-store.js")>(),
   agentFileStore: () => store,
@@ -11,6 +13,18 @@ const context = { invocationScope: { companyId: "company", actionUserId: "user" 
 const input = { companyId: "company", agentId: "agent", path: "AGENTS.md" };
 describe("plugin instruction action boundary", () => {
   beforeEach(() => vi.clearAllMocks());
+  it("checks native target permission before GitHub access", async () => {
+    store.locked.mockRejectedValueOnce(new Error("forbidden target"));
+    await expect(pluginAgentInstructions({} as never).sourceSnapshot({ companyId: "company", agentId: "agent", repositoryUrl: "https://github.com/example/repo", ref: "main", paths: ["AGENTS.md"] }, context)).rejects.toThrow("forbidden target");
+    expect(github.create).not.toHaveBeenCalled();
+  });
+  it("uses the bound human and native GitHub grants, never local implicit access", async () => {
+    store.locked.mockResolvedValueOnce(undefined);
+    github.create.mockReturnValue(github.read);
+    github.read.mockRejectedValueOnce(new Error("GitHub grant denied"));
+    await expect(pluginAgentInstructions({} as never).sourceSnapshot({ companyId: "company", agentId: "agent", repositoryUrl: "https://github.com/example/repo", ref: "main", paths: ["AGENTS.md"] }, context)).rejects.toThrow("GitHub grant denied");
+    expect(github.create).toHaveBeenCalledWith({}, "company", { type: "board", userId: "user" }, null);
+  });
   it.each([undefined, {}, { invocationScope: { companyId: "company" } },
     { invocationScope: { companyId: "other", actionUserId: "user" } },
     { ...context, invalidInvocationScope: true }])("rejects unbound, background and cross-company contexts", (ctx) => {

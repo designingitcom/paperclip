@@ -2103,6 +2103,10 @@ export interface WorkerToHostMethods {
     params: { agentId: string; companyId: string; path: string },
     result: { path: string; content: string | null; contentHash: string | null },
   ];
+  "agents.instructions.sourceSnapshot": [
+    params: { companyId: string; agentId: string; repositoryUrl: string; ref: string; paths: string[]; connectionId?: string },
+    result: { commit: string; files: { path: string; content: string }[] },
+  ];
   "agents.instructions.write": [
     params: { agentId: string; companyId: string; path: string; content: string; baseHash: string | null },
     result: { contentHash: string | null; changed: boolean },

@@ -33,7 +33,7 @@ export function AgentSourcesView({ check, sync }: { check: () => Promise<Plan>; 
       <div><h1 className="text-xl font-semibold">Agent Sources</h1><p className="text-sm text-muted-foreground">Review Git changes before updating installed agent files.</p></div>
       <button className={button} disabled={busy} onClick={() => void checkUpdates()}>{busy ? "Working…" : "Check for updates"}</button>
     </header>
-    <p className="text-sm text-muted-foreground">Pilot: configured canonical checkout and tracking ref. Git fetch/deployment remains a separate operator step. This does not update skills, adapters, models or run scripts.</p>
+    <p className="text-sm text-muted-foreground">Check reads the configured GitHub branch using your authorized Paperclip connection, or the configured local Git ref. Review the exact commit before syncing. This does not update skills, adapters, models or run scripts.</p>
     {error && <div role="alert" className="border border-destructive rounded-md p-3 text-destructive">{error}</div>}
     {!plan && !receipt && !error && <p role="status">Check for updates to compare the configured agent with the deployed Git snapshot. Nothing is selected or changed automatically.</p>}
     {plan && <>

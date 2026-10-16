@@ -3,6 +3,8 @@ import type { WorkerHostCallContext } from "@paperclipai/plugin-sdk";
 import { forbidden, unprocessable } from "../errors.js";
 import { agentFilePath, agentFileStore, inspectAgentFile } from "./agent-file-store.js";
 import { instructionBytes } from "./agent-instruction-files.js";
+import { skillSourceGitHubReader } from "./skill-source-github-access.js";
+import { agentSourceGitHubSnapshot } from "./agent-source-github-snapshot.js";
 
 /** Authority comes only from the manager's active invocation registry, never
  * from a plugin-supplied user ID, company membership cache, or shared token. */
@@ -17,6 +19,15 @@ export function instructionActionActor(companyId: string, context?: WorkerHostCa
 export function pluginAgentInstructions(db: Db) {
   const files = agentFileStore(db);
   return {
+    async sourceSnapshot(input: { companyId: string; agentId: string; repositoryUrl: string; ref: string; paths: string[]; connectionId?: string }, context?: WorkerHostCallContext) {
+      const actor = instructionActionActor(input.companyId, context);
+      // Reauthorize target before any GitHub request. No cached membership or
+      // local_implicit privilege is inferred from an action's user ID.
+      await files.locked(input.companyId, input.agentId, actor, false, async () => undefined);
+      const reader = skillSourceGitHubReader(db, input.companyId, actor, input.connectionId ?? null);
+      const scan = () => agentSourceGitHubSnapshot(input, reader);
+      return reader.withScan ? reader.withScan(scan) : scan();
+    },
     async read(input: { companyId: string; agentId: string; path: string }, context?: WorkerHostCallContext) {
       const actor = instructionActionActor(input.companyId, context);
       const relative = agentFilePath(input.path);

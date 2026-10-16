@@ -2779,6 +2779,7 @@ export function buildHostServices(
 
     agents: {
       instructionsRead: (params, context) => pluginAgentInstructions(db).read(params, context),
+      instructionsSourceSnapshot: (params, context) => pluginAgentInstructions(db).sourceSnapshot(params, context),
       instructionsWrite: (params, context) => pluginAgentInstructions(db).write(params, context),
       async list(params) {
         const companyId = ensureCompanyId(params.companyId);

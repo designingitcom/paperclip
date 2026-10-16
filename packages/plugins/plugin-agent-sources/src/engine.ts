@@ -10,15 +10,18 @@ const relative = (value: string) => {
   if (!value || value.length > 512 || value.includes("\\") || value.includes("\0") || isAbsolute(value) || value.split("/").some(p => !p || p === "." || p === ".." || p === ".paperclip-runtime")) throw new Error("Invalid mapped path");
   return value;
 };
-export interface SourceConfig { repoPath: string; companyId: string; agentId: string; agentName: string; sourcePrefix: string; entrySource: string; supportingFiles: string[]; trackingRef: string }
+export interface SourceConfig { repoPath: string; repositoryUrl?: string; connectionId?: string; companyId: string; agentId: string; agentName: string; sourcePrefix: string; entrySource: string; supportingFiles: string[]; trackingRef: string }
 export interface PlannedFile { path: string; sourcePath: string; before: string | null; after: string; baseHash: string | null; targetHash: string; changed: boolean }
 export interface Plan { id: string; companyId: string; agentId: string; agentName: string; commit: string; trackingRef: string; expiresAt: string; files: PlannedFile[] }
 export interface Receipt { commit: string; completed: string[]; failed: string | null; message: string; checkedAt: string }
 export function validateConfig(raw: Record<string, unknown>): SourceConfig {
-  for (const key of ["repoPath", "companyId", "agentId", "agentName", "sourcePrefix", "entrySource", "trackingRef"]) if (typeof raw[key] !== "string" || !raw[key]) throw new Error(`Operator configuration missing: ${key}`);
+  for (const key of ["companyId", "agentId", "agentName", "sourcePrefix", "entrySource", "trackingRef"]) if (typeof raw[key] !== "string" || !raw[key]) throw new Error(`Operator configuration missing: ${key}`);
   if (!Array.isArray(raw.supportingFiles) || raw.supportingFiles.some(x => typeof x !== "string") || raw.supportingFiles.length > 30) throw new Error("Configure at most 30 supporting files");
   const c = raw as unknown as SourceConfig;
-  if (!isAbsolute(c.repoPath) || !/^refs\/(heads|remotes)\/[A-Za-z0-9._/-]+$/.test(c.trackingRef)) throw new Error("Invalid repository or tracking ref");
+  if (c.repositoryUrl) {
+    if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/.test(c.repositoryUrl) || /[\x00-\x20]/.test(c.trackingRef)) throw new Error("Invalid GitHub repository or branch");
+    if (c.connectionId !== undefined && typeof c.connectionId !== "string") throw new Error("Invalid GitHub connection");
+  } else if (typeof c.repoPath !== "string" || !isAbsolute(c.repoPath) || !/^refs\/(heads|remotes)\/[A-Za-z0-9._/-]+$/.test(c.trackingRef)) throw new Error("Invalid repository or tracking ref");
   relative(c.sourcePrefix); relative(c.entrySource); c.supportingFiles.forEach(relative);
   if (new Set(c.supportingFiles).size !== c.supportingFiles.length || c.supportingFiles.includes("AGENTS.md")) throw new Error("Duplicate mapped file");
   return c;
@@ -45,7 +48,15 @@ export async function readCommittedSource(config: SourceConfig) {
 export async function makePlan(config: SourceConfig, files: PluginAgentsClient["instructions"]): Promise<Plan> {
   // Authorize the target before reading any agency repository content.
   await files.read({ companyId: config.companyId, agentId: config.agentId, path: "AGENTS.md" });
-  const source = await readCommittedSource(config);
+  const source = config.repositoryUrl ? await (async () => {
+    const mapping = [{ path: "AGENTS.md", sourcePath: config.entrySource }, ...config.supportingFiles.map(path => ({ path, sourcePath: `${config.sourcePrefix}/${path}` }))];
+    const snapshot = await files.sourceSnapshot({ companyId: config.companyId, agentId: config.agentId, repositoryUrl: config.repositoryUrl!, ref: config.trackingRef, paths: mapping.map(f => f.sourcePath), connectionId: config.connectionId });
+    return { commit: snapshot.commit, files: mapping.map(f => {
+      const found = snapshot.files.find(s => s.path === f.sourcePath);
+      if (!found) throw new Error("GitHub snapshot omitted a mapped file");
+      return { ...f, content: found.content };
+    }) };
+  })() : await readCommittedSource(config);
   const planned: PlannedFile[] = [];
   let reviewBytes = 0;
   for (const file of source.files) {
@@ -57,7 +68,7 @@ export async function makePlan(config: SourceConfig, files: PluginAgentsClient["
   }
   return { id: randomUUID(), companyId: config.companyId, agentId: config.agentId, agentName: config.agentName, commit: source.commit, trackingRef: config.trackingRef, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), files: planned };
 }
-export async function applyPlan(plan: Plan, selected: string[], files: PluginAgentsClient["instructions"]): Promise<Receipt> {
+export async function applyPlan(plan: Plan, selected: string[], files: Pick<PluginAgentsClient["instructions"], "read" | "write">): Promise<Receipt> {
   if (Date.now() > Date.parse(plan.expiresAt)) throw new Error("Review expired. Check for updates again.");
   if (!selected.length || new Set(selected).size !== selected.length || selected.some(path => !plan.files.some(f => f.path === path && f.changed))) throw new Error("Select changed files from the reviewed plan");
   const chosen = plan.files.filter(f => selected.includes(f.path));
