@@ -101,7 +101,12 @@ Upstream review identified two valid gaps: paused agents may still have a
 stopping run, and oversized reads were rejected only after hashing. Both pilot
 and upstream now reject queued/running runs and unacknowledged cancellation
 requests, and cap plugin reads at 1 MiB plus one byte. Added real DB stop-state
-and filesystem size regression checks. Linux server rebuild is underway.
+and filesystem size regression checks. All 16 pilot Linux regression checks pass.
+The hardened server rebuild was deliberately stopped (exit137) after the native
+TypeScript compiler exceeded 4 GiB and available RAM fell below 1 GiB while live
+tasks were running. TERM then KILL targeted only verified isolated compiler
+PID10832; production was not restarted. Latest Node24 local server typecheck
+passed. A resource-safe final Linux rebuild remains required.
 
 Oct16 production preflight: existing commit d00789ea4 remains healthy, embedded
 database is 127.0.0.1:54329/paperclip, and the check found no queued/running runs.
