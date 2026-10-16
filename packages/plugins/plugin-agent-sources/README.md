@@ -34,7 +34,7 @@ inline prompts, external instruction files, or custom entry-file agents.
   "repositoryUrl": "https://github.com/designingitcom/agentic-os",
   "companyId": "9dbbcdb3-7a5f-4882-af7a-a5eca20423ac",
   "agentId": "94657e2f-c90a-4d29-8499-0e5a6264535e",
-  "agentName": "WordPress Agent Copy",
+  "agentName": "WordPress Update Agent",
   "trackingRef": "main",
   "entrySource": "paperclip/prompts/support/agents/wordpress-update-agent.AGENTS.md",
   "sourcePrefix": "paperclip/prompts/support/agents/wordpress-update-agent",
