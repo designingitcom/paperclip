@@ -32,7 +32,8 @@ Disabling the plugin removes its UI but does not roll back synchronized files.
 ## Release sequence (not performed)
 
 1. Review this owned-fork patch against the currently deployed revision. Do not
-   send upstream or merge automatically. Re-run native integration in staging.
+   merge automatically. Re-run native integration in staging. The user approved
+   a separate narrow upstream contribution on Oct16 (see below).
 2. Build matching core, shared package, SDK and plugin. Resolve the operator's
    build environment; the developer's Rust wrapper failure is not a waiver.
 3. Confirm snapshot and no active runs. Obtain the deployment window before a
@@ -63,7 +64,7 @@ completion, clearly reported. Never blindly roll back over newer live work.
   files untouched. Root-owned /s1mos is not made writable to the plugin.
 - Added bounded GitHub source method, native acting-user grant reuse, immutable
   tree/blob reads, regular-file/UTF-8/size guards and a 25-second fetch deadline.
-- 132 focused tests pass; direct server TypeScript, SDK/plugin checks and token
+- 134 focused tests pass; direct server TypeScript, SDK/plugin checks and token
   gates pass. Browser fetched a real public upstream commit, reviewed/synced
   only GOAL.md, reloaded to confirm GOAL.md in sync and AGENTS.md unchanged,
   refused private repository access without a grant, and checked mobile/cancel.
@@ -74,3 +75,45 @@ completion, clearly reported. Never blindly roll back over newer live work.
 - Linux build is staged in /tmp/paperclip-agent-sources-release.bSgaOY, not the
   production checkout. Serial low-priority build uses the existing service-user
   Node24/Rust toolchain. Initial missing cargo PATH was corrected without install.
+
+## Upstream extraction (Oct16)
+
+User authorized a public core contribution. Draft upstream PR
+https://github.com/paperclipai/paperclip/pull/16562 contains only generic managed
+instruction-file read/write capabilities, trusted action identity, native file
+guards, tests and documentation. It is based on current upstream 43ffe8ce9 and
+does not include this agency plugin, source mapping or GitHub snapshot method.
+Related runtime-sync PR #16499 was reviewed for overlap; no lifecycle delivery
+implementation was duplicated. Maintainer design agreement is not yet obtained.
+
+The extracted branch passes 120 focused tests, SDK build, runner TypeScript
+build, direct server TypeScript and map checks. Its first PostgreSQL test launch
+failed because ignore-scripts omitted dylib aliases; direct initdb reproduced
+that missing library, and the dependency's normal hydration repaired it. Full
+upstream CI is pending, so the draft is not release-qualified.
+
+The Linux full 36-package build passed with exit 0, including native runner,
+server, UI and CLI. Archive builds now carry PAPERCLIP_BUILD_COMMIT provenance.
+The first SSH session reset; the complete cached rerun supplied the final pass.
+134 focused Linux tests passed before the subsequent review hardening below.
+
+Upstream review identified two valid gaps: paused agents may still have a
+stopping run, and oversized reads were rejected only after hashing. Both pilot
+and upstream now reject queued/running runs and unacknowledged cancellation
+requests, and cap plugin reads at 1 MiB plus one byte. Added real DB stop-state
+and filesystem size regression checks. Linux server rebuild is underway.
+
+Oct16 production preflight: existing commit d00789ea4 remains healthy, embedded
+database is 127.0.0.1:54329/paperclip, and the check found no queued/running runs.
+Verified automatic SQL backup paperclip-20261016-102224.sql.gz is retained with
+full Git bundle, service configuration, private environment/config copies and
+tracked dirty patch in /backups/paperclip-agent-sources-20261016 (342 MiB,
+restricted permissions). Existing untracked runtime material stays untouched.
+No schema/migration changes are introduced. The release-upgrade skill requires
+current DigitalOcean snapshot confirmation before a live switch; that remains
+pending. No production source edits, settings changes or restart have occurred.
+
+Initial upstream CI has 49 passing checks and two unrelated broad test failures:
+legacy-workspace-restore-recovery expected ephemeral but got retain_on_failure;
+workspace-runtime-exposure encountered EADDRINUSE on port 42000. They are not
+claimed resolved; the draft remains under CI/review. New safety commit restarts CI.
