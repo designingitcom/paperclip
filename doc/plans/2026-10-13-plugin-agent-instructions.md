@@ -47,8 +47,30 @@ Disabling the plugin removes its UI but does not roll back synchronized files.
 7. For an approved change, select files, review, sync and verify receipt plus
    native audit. Check again for a no-op. Stop if content or permission differs.
 
-The plugin reads an already deployed local tracking ref; Git fetch/deployment
-remains separate. Repository selection, multi-agent UI, automatic fetch and
-receipt history UI are deferred. The latest content-free receipt is persisted.
+The original pilot read an already deployed local tracking ref. The Oct16
+follow-up adds a configured GitHub repository/branch mode: Check resolves the
+branch and reads only mapped regular blobs at an immutable SHA through native
+GitHub user grants. No archive, extra repository checkout, publisher token,
+filesystem ownership change, or worker credential is needed. Local mode stays
+explicitly separate. Repository picker, multi-agent UI, automatic merge-triggered
+publish and receipt history UI remain deferred. Latest receipt is persisted.
 Writes are per-file CAS, not an atomic bundle: a late failure can leave partial
 completion, clearly reported. Never blindly roll back over newer live work.
+
+## Oct16 resumption
+
+- Verified deployed revision remains d00789ea4; service active. Dirty production
+  files untouched. Root-owned /s1mos is not made writable to the plugin.
+- Added bounded GitHub source method, native acting-user grant reuse, immutable
+  tree/blob reads, regular-file/UTF-8/size guards and a 25-second fetch deadline.
+- 132 focused tests pass; direct server TypeScript, SDK/plugin checks and token
+  gates pass. Browser fetched a real public upstream commit, reviewed/synced
+  only GOAL.md, reloaded to confirm GOAL.md in sync and AGENTS.md unchanged,
+  refused private repository access without a grant, and checked mobile/cancel.
+- Private authorized production GitHub connection proof remains a release gate;
+  local QA deliberately does not copy production credentials.
+- Canonical WordPress manifest now has nine supporting files. Pilot sample was
+  reconciled; live target identity and later live changes still require review.
+- Linux build is staged in /tmp/paperclip-agent-sources-release.bSgaOY, not the
+  production checkout. Serial low-priority build uses the existing service-user
+  Node24/Rust toolchain. Initial missing cargo PATH was corrected without install.

@@ -38,7 +38,7 @@ inline prompts, external instruction files, or custom entry-file agents.
   "trackingRef": "main",
   "entrySource": "paperclip/prompts/support/agents/wordpress-update-agent.AGENTS.md",
   "sourcePrefix": "paperclip/prompts/support/agents/wordpress-update-agent",
-  "supportingFiles": ["scripts/find_findings.py", "scripts/parse_findings.py", "scripts/run_updates.py", "scripts/gitlab_mr.py", "scripts/health_check.sh", "scripts/README.md"]
+  "supportingFiles": ["scripts/find_findings.py", "scripts/parse_findings.py", "scripts/run_updates.py", "scripts/gitlab_mr.py", "scripts/wp-update.py", "scripts/health_check.sh", "scripts/screenshot.py", "scripts/update_report.py", "scripts/README.md"]
 }
 ```
 
@@ -56,3 +56,8 @@ must be trusted in local mode and only instance operators may configure mappings
 The latest content-free receipt per mapped agent is persisted in plugin company
 state, including the source commit, verified paths and acting user. Native file
 audit events remain the authoritative per-write audit trail.
+
+The sample supporting paths were reconciled to the canonical manifest on
+2026-10-16 (nine supporting files, not the older six). Confirm the live agent ID
+and display name before production setup. A preview is not permission to
+overwrite later live changes; review every difference with the owner.
