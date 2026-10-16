@@ -25,7 +25,8 @@ export function pluginAgentInstructions(db: Db) {
       // local_implicit privilege is inferred from an action's user ID.
       await files.locked(input.companyId, input.agentId, actor, false, async () => undefined);
       const reader = skillSourceGitHubReader(db, input.companyId, actor, input.connectionId ?? null);
-      const scan = () => agentSourceGitHubSnapshot(input, reader);
+      const signal = AbortSignal.timeout(25_000);
+      const scan = () => agentSourceGitHubSnapshot(input, path => reader(path, signal));
       return reader.withScan ? reader.withScan(scan) : scan();
     },
     async read(input: { companyId: string; agentId: string; path: string }, context?: WorkerHostCallContext) {

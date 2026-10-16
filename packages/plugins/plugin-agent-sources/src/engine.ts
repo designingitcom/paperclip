@@ -12,7 +12,7 @@ const relative = (value: string) => {
 };
 export interface SourceConfig { repoPath: string; repositoryUrl?: string; connectionId?: string; companyId: string; agentId: string; agentName: string; sourcePrefix: string; entrySource: string; supportingFiles: string[]; trackingRef: string }
 export interface PlannedFile { path: string; sourcePath: string; before: string | null; after: string; baseHash: string | null; targetHash: string; changed: boolean }
-export interface Plan { id: string; companyId: string; agentId: string; agentName: string; commit: string; trackingRef: string; expiresAt: string; files: PlannedFile[] }
+export interface Plan { id: string; companyId: string; agentId: string; agentName: string; commit: string; trackingRef: string; sourceLabel?: string; expiresAt: string; files: PlannedFile[] }
 export interface Receipt { commit: string; completed: string[]; failed: string | null; message: string; checkedAt: string }
 export function validateConfig(raw: Record<string, unknown>): SourceConfig {
   for (const key of ["companyId", "agentId", "agentName", "sourcePrefix", "entrySource", "trackingRef"]) if (typeof raw[key] !== "string" || !raw[key]) throw new Error(`Operator configuration missing: ${key}`);
@@ -66,7 +66,7 @@ export async function makePlan(config: SourceConfig, files: PluginAgentsClient["
     if (reviewBytes > 8 * 1024 * 1024) throw new Error("Review exceeds the 8 MiB pilot limit; reduce the mapped text files");
     planned.push({ path: file.path, sourcePath: file.sourcePath, before: live.content, after: file.content, baseHash: live.contentHash, targetHash, changed: live.contentHash !== targetHash });
   }
-  return { id: randomUUID(), companyId: config.companyId, agentId: config.agentId, agentName: config.agentName, commit: source.commit, trackingRef: config.trackingRef, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), files: planned };
+  return { id: randomUUID(), companyId: config.companyId, agentId: config.agentId, agentName: config.agentName, commit: source.commit, trackingRef: config.trackingRef, sourceLabel: config.repositoryUrl ?? "Configured local Git checkout", expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), files: planned };
 }
 export async function applyPlan(plan: Plan, selected: string[], files: Pick<PluginAgentsClient["instructions"], "read" | "write">): Promise<Receipt> {
   if (Date.now() > Date.parse(plan.expiresAt)) throw new Error("Review expired. Check for updates again.");

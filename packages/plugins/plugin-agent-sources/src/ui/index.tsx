@@ -37,6 +37,7 @@ export function AgentSourcesView({ check, sync }: { check: () => Promise<Plan>; 
     {error && <div role="alert" className="border border-destructive rounded-md p-3 text-destructive">{error}</div>}
     {!plan && !receipt && !error && <p role="status">Check for updates to compare the configured agent with the deployed Git snapshot. Nothing is selected or changed automatically.</p>}
     {plan && <>
+      <p className="text-sm break-all">Source: {plan.sourceLabel ?? "Configured Git source"}</p>
       <div className="space-y-1"><h2 className="font-semibold">{plan.agentName}</h2><p className="text-sm break-all">Company <code>{plan.companyId}</code> · Agent <code>{plan.agentId}</code></p><p className="text-sm break-all"><code>{plan.trackingRef}</code> · Commit <code>{plan.commit}</code></p><p className="text-sm text-muted-foreground">Review expires {new Date(plan.expiresAt).toLocaleTimeString()}. Only checked files will be synced.</p></div>
       {!plan.files.some(f => f.changed) && <p role="status">All mapped files are in sync.</p>}
       <div className="divide-y divide-border border-y border-border">{plan.files.map(file => <article key={file.path} className="py-3 space-y-2">

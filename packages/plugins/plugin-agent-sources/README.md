@@ -4,11 +4,17 @@ This is a custom plugin on a small native SDK extension, not upstream Paperclip
 GitHub skill sync. Requires this branch's `agents.instructions.read/write` host
 capabilities. Never configure a shared publisher token.
 
-An operator configures one company, one agent and an existing canonical Git
-checkout. **Check for updates reads the configured local tracking ref. It does
-not fetch GitHub.** Keep the ordinary Git fetch/deployment step. Only committed
-regular UTF-8 files are read; dirty working files, symlinks and submodules are
-not source. Scripts are installed as text, never executed.
+An operator configures one company, one agent, repository and branch. **Check
+for updates resolves the current GitHub branch and reads only mapped blobs at
+that immutable commit.** It reuses Paperclip's native GitHub connection grants
+for the acting user. No new token, repository archive, local checkout write or
+SSH credential is required. Private repositories need the user's existing
+authorized GitHub connection. A denied/failed fetch never falls back to stale
+local content. Only regular UTF-8 files are read; symlinks and submodules are
+rejected. Scripts are installed as text, never executed.
+
+An optional legacy/local mode remains when `repositoryUrl` is omitted: set
+`repoPath` and a full local `trackingRef`. That mode does not fetch remotely.
 
 The logged-in user's current native permissions authorize every read/write.
 Plans are user/company-bound, expire after ten minutes, are single-use, and are
@@ -25,11 +31,11 @@ inline prompts, external instruction files, or custom entry-file agents.
 
 ```json
 {
-  "repoPath": "/s1mos",
+  "repositoryUrl": "https://github.com/designingitcom/agentic-os",
   "companyId": "9dbbcdb3-7a5f-4882-af7a-a5eca20423ac",
   "agentId": "94657e2f-c90a-4d29-8499-0e5a6264535e",
   "agentName": "WordPress Agent Copy",
-  "trackingRef": "refs/remotes/origin/main",
+  "trackingRef": "main",
   "entrySource": "paperclip/prompts/support/agents/wordpress-update-agent.AGENTS.md",
   "sourcePrefix": "paperclip/prompts/support/agents/wordpress-update-agent",
   "supportingFiles": ["scripts/find_findings.py", "scripts/parse_findings.py", "scripts/run_updates.py", "scripts/gitlab_mr.py", "scripts/health_check.sh", "scripts/README.md"]
@@ -42,10 +48,10 @@ deployed. No database migration. Do not restart production with active runs.
 Rollback: disable/uninstall the plugin; core methods are additive. Installed
 agent content is not automatically reverted.
 
-Not yet provided: arbitrary GitHub repository picker, automatic fetch/publish,
+Not yet provided: arbitrary GitHub repository picker, automatic merge-triggered publish,
 multi-agent mapping editor, receipt history UI, binary files, delete,
 dependency installation or settings/adapter/model changes. The local checkout
-must be trusted and only instance operators may configure it.
+must be trusted in local mode and only instance operators may configure mappings.
 
 The latest content-free receipt per mapped agent is persisted in plugin company
 state, including the source commit, verified paths and acting user. Native file
