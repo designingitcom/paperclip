@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { applyPlan, validateConfig, type Plan } from "../../../packages/plugins/plugin-agent-sources/src/engine.js";
+import { applyPlan, makePlan, validateConfig, type Plan } from "../../../packages/plugins/plugin-agent-sources/src/engine.js";
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 function fixture() {
   const content = new Map([["AGENTS.md", "old"], ["scripts/helper.py", "old helper"]]);
   const files = {
+    sourceSnapshot: vi.fn(async () => ({ commit: "d".repeat(40), files: [{ path: "entry.md", content: "remote instructions" }, { path: "agent/scripts/helper.py", content: "remote helper" }] })),
     read: vi.fn(async ({ path }: { path: string }) => ({ path, content: content.get(path) ?? null, contentHash: content.has(path) ? hash(content.get(path)!) : null })),
     write: vi.fn(async ({ path, content: next, baseHash }: { path: string; content: string; baseHash: string | null }) => {
       if ((content.has(path) ? hash(content.get(path)!) : null) !== baseHash) throw new Error("conflict");
@@ -15,6 +16,21 @@ function fixture() {
   return { content, files, plan };
 }
 describe("Agent Sources reviewed sync", () => {
+  it("maps only configured GitHub files and records source identity", async () => {
+    const f = fixture();
+    const config = validateConfig({ repositoryUrl: "https://github.com/example/repo", companyId: "company", agentId: "agent", agentName: "Fixture", trackingRef: "main", sourcePrefix: "agent", entrySource: "entry.md", supportingFiles: ["scripts/helper.py"] });
+    const plan = await makePlan(config, f.files);
+    expect(plan).toMatchObject({ commit: "d".repeat(40), sourceLabel: config.repositoryUrl });
+    expect(plan.files.map(file => [file.path, file.after])).toEqual([["AGENTS.md", "remote instructions"], ["scripts/helper.py", "remote helper"]]);
+    expect(f.files.sourceSnapshot).toHaveBeenCalledWith(expect.objectContaining({ paths: ["entry.md", "agent/scripts/helper.py"], ref: "main" }));
+    expect(f.files.write).not.toHaveBeenCalled();
+  });
+  it("does not fetch GitHub when native target read is denied", async () => {
+    const f = fixture(); f.files.read.mockRejectedValueOnce(new Error("target denied"));
+    const config = validateConfig({ repositoryUrl: "https://github.com/example/repo", companyId: "company", agentId: "agent", agentName: "Fixture", trackingRef: "main", sourcePrefix: "agent", entrySource: "entry.md", supportingFiles: [] });
+    await expect(makePlan(config, f.files)).rejects.toThrow("target denied");
+    expect(f.files.sourceSnapshot).not.toHaveBeenCalled();
+  });
   it("writes only selected files and verifies readback", async () => {
     const f = fixture();
     expect(await applyPlan(f.plan, ["AGENTS.md"], f.files)).toMatchObject({ completed: ["AGENTS.md"], failed: null });
