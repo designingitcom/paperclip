@@ -19,6 +19,7 @@ import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import {
   PluginBridgeContext,
   resolveHostNavigationHref,
+  resolveAuthorizedCompanyHref,
   shouldHandleHostNavigationClick,
   useHostNavigation,
   type PluginBridgeContextValue,
@@ -42,6 +43,20 @@ function clickEvent(
     ...overrides,
   } as ReactMouseEvent<HTMLAnchorElement>;
 }
+
+describe("authorized plugin company navigation", () => {
+  const companies = [{ id: "allowed", issuePrefix: "SUP", status: "active" }, { id: "old", issuePrefix: "OLD", status: "archived" }];
+  it("uses the selected authorized company, not the old prefix", () => {
+    expect(resolveAuthorizedCompanyHref(companies, "allowed", "/agent-sources")).toBe("/SUP/agent-sources");
+  });
+  it("rejects unknown and archived companies", () => {
+    expect(() => resolveAuthorizedCompanyHref(companies, "other", "/agent-sources")).toThrow();
+    expect(() => resolveAuthorizedCompanyHref(companies, "old", "/agent-sources")).toThrow();
+  });
+  it("rejects external URLs and path traversal", () => {
+    for (const path of ["https://example.com", "//example.com", "/../admin", "/agent-sources?companyId=other"]) expect(() => resolveAuthorizedCompanyHref(companies, "allowed", path)).toThrow();
+  });
+});
 
 afterEach(() => {
   delete globalThis.__paperclipPluginBridge__;

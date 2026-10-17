@@ -257,7 +257,7 @@ describe("plugin-worker-manager stderr failure context", () => {
     }
   });
 
-  it("passes performAction invocation scope to nested worker host calls", async () => {
+  it.each(["user", "agent"] as const)("passes trusted %s performAction scope to nested worker host calls", async (actorType) => {
     const companiesGet = vi.fn(async (
       params: { companyId: string },
       context?: { invocationScope?: { companyId?: string | null } | null },
@@ -289,9 +289,9 @@ describe("plugin-worker-manager stderr failure context", () => {
           requestedCompanyId: "company-a",
         },
         actorContext: {
-          type: "agent",
-          userId: null,
-          agentId: "agent-1",
+          type: actorType,
+          userId: actorType === "user" ? "user-1" : null,
+          agentId: actorType === "agent" ? "agent-1" : null,
           runId: "run-1",
           companyId: "company-a",
         },
@@ -302,7 +302,7 @@ describe("plugin-worker-manager stderr failure context", () => {
       });
       expect(companiesGet).toHaveBeenCalledWith(
         { companyId: "company-a" },
-        { invocationScope: { companyId: "company-a" } },
+        { invocationScope: { companyId: "company-a", ...(actorType === "user" ? { actionUserId: "user-1" } : {}) } },
       );
     } finally {
       await handle.stop().catch(() => undefined);

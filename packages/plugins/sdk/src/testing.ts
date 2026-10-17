@@ -2045,6 +2045,11 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
       },
     },
     agents: {
+      instructions: {
+        async sourceSnapshot() { throw new Error("GitHub source access requires an authenticated host action"); },
+        async read() { throw new Error("Instruction file access requires an authenticated host action; provide an explicit test override"); },
+        async write() { throw new Error("Instruction file access requires an authenticated host action; provide an explicit test override"); },
+      },
       async list(input) {
         requireCapability(manifest, capabilitySet, "agents.read");
         const companyId = requireCompanyId(input?.companyId);

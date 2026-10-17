@@ -1,0 +1,73 @@
+import { describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { applyPlan, makePlan, validateConfig, configuredSources, selectSource, type Plan } from "../../../packages/plugins/plugin-agent-sources/src/engine.js";
+const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+function fixture() {
+  const content = new Map([["AGENTS.md", "old"], ["scripts/helper.py", "old helper"]]);
+  const files = {
+    sourceSnapshot: vi.fn(async () => ({ commit: "d".repeat(40), files: [{ path: "entry.md", content: "remote instructions" }, { path: "agent/scripts/helper.py", content: "remote helper" }] })),
+    read: vi.fn(async ({ path }: { path: string }) => ({ path, content: content.get(path) ?? null, contentHash: content.has(path) ? hash(content.get(path)!) : null })),
+    write: vi.fn(async ({ path, content: next, baseHash }: { path: string; content: string; baseHash: string | null }) => {
+      if ((content.has(path) ? hash(content.get(path)!) : null) !== baseHash) throw new Error("conflict");
+      content.set(path, next); return { changed: true, contentHash: hash(next) };
+    }),
+  };
+  const plan: Plan = { id: "review", companyId: "company", agentId: "agent", agentName: "Fixture", commit: "a".repeat(40), trackingRef: "refs/heads/main", expiresAt: new Date(Date.now() + 60000).toISOString(), files: [...content].map(([path, before]) => ({ path, sourcePath: path, before, after: `new ${before}`, baseHash: hash(before), targetHash: hash(`new ${before}`), changed: true })) };
+  return { content, files, plan };
+}
+describe("Agent Sources reviewed sync", () => {
+  const primary = { repositoryUrl: "https://github.com/example/repo", companyId: "company", agentId: "first", agentName: "First", trackingRef: "main", sourcePrefix: "first", entrySource: "first.md", supportingFiles: [] };
+  const second = { agentId: "second", agentName: "Second", sourcePrefix: "second", entrySource: "second.md", supportingFiles: ["helper.md"] };
+  it("preserves the single-agent mapping and selects only explicitly configured agents", () => {
+    expect(configuredSources(primary)).toHaveLength(1);
+    const raw = { ...primary, additionalAgents: [second] };
+    expect(selectSource(raw, "company", "second")).toMatchObject({ ...second, companyId: "company", repositoryUrl: primary.repositoryUrl });
+    expect(() => selectSource(raw, "company", "unknown")).toThrow("not configured");
+    expect(() => selectSource(raw, "other", "second")).toThrow("configured company");
+  });
+  it("rejects duplicate, cross-company, unbounded and incomplete mappings", () => {
+    expect(() => configuredSources({ ...primary, additionalAgents: [{ ...second, agentId: "first" }] })).toThrow("Duplicate");
+    expect(() => configuredSources({ ...primary, additionalAgents: [{ ...second, companyId: "other" }] })).toThrow("share");
+    expect(() => configuredSources({ ...primary, additionalAgents: Array(20).fill(second) })).toThrow("20 agents");
+    expect(() => configuredSources({ ...primary, additionalAgents: [{ agentId: "second" }] })).toThrow("missing");
+  });
+  it("maps only configured GitHub files and records source identity", async () => {
+    const f = fixture();
+    const config = validateConfig({ repositoryUrl: "https://github.com/example/repo", companyId: "company", agentId: "agent", agentName: "Fixture", trackingRef: "main", sourcePrefix: "agent", entrySource: "entry.md", supportingFiles: ["scripts/helper.py"] });
+    const plan = await makePlan(config, f.files);
+    expect(plan).toMatchObject({ commit: "d".repeat(40), sourceLabel: config.repositoryUrl });
+    expect(plan.files.map(file => [file.path, file.after])).toEqual([["AGENTS.md", "remote instructions"], ["scripts/helper.py", "remote helper"]]);
+    expect(f.files.sourceSnapshot).toHaveBeenCalledWith(expect.objectContaining({ paths: ["entry.md", "agent/scripts/helper.py"], ref: "main" }));
+    expect(f.files.write).not.toHaveBeenCalled();
+  });
+  it("does not fetch GitHub when native target read is denied", async () => {
+    const f = fixture(); f.files.read.mockRejectedValueOnce(new Error("target denied"));
+    const config = validateConfig({ repositoryUrl: "https://github.com/example/repo", companyId: "company", agentId: "agent", agentName: "Fixture", trackingRef: "main", sourcePrefix: "agent", entrySource: "entry.md", supportingFiles: [] });
+    await expect(makePlan(config, f.files)).rejects.toThrow("target denied");
+    expect(f.files.sourceSnapshot).not.toHaveBeenCalled();
+  });
+  it("writes only selected files and verifies readback", async () => {
+    const f = fixture();
+    expect(await applyPlan(f.plan, ["AGENTS.md"], f.files)).toMatchObject({ completed: ["AGENTS.md"], failed: null });
+    expect(f.content.get("scripts/helper.py")).toBe("old helper");
+  });
+  it("preflights all files before writing any", async () => {
+    const f = fixture(); f.content.set("scripts/helper.py", "newer live work");
+    await expect(applyPlan(f.plan, ["AGENTS.md", "scripts/helper.py"], f.files)).rejects.toThrow("Live file changed");
+    expect(f.files.write).not.toHaveBeenCalled();
+  });
+  it("reports partial failure without claiming rollback", async () => {
+    const f = fixture(); f.files.write.mockImplementationOnce(async input => { f.content.set(input.path, input.content); return { changed: true, contentHash: hash(input.content) }; }).mockRejectedValueOnce(new Error("denied"));
+    expect(await applyPlan(f.plan, ["AGENTS.md", "scripts/helper.py"], f.files)).toMatchObject({ completed: ["AGENTS.md"], failed: "scripts/helper.py" });
+  });
+  it("rejects expired review and arbitrary/duplicate selections", async () => {
+    const f = fixture();
+    for (const selected of [[], ["unknown"], ["AGENTS.md", "AGENTS.md"]]) await expect(applyPlan(f.plan, selected, f.files)).rejects.toThrow();
+    f.plan.expiresAt = new Date(0).toISOString();
+    await expect(applyPlan(f.plan, ["AGENTS.md"], f.files)).rejects.toThrow("expired");
+    expect(f.files.write).not.toHaveBeenCalled();
+  });
+  it("rejects unsafe operator mappings", () => {
+    expect(() => validateConfig({ repoPath: "/tmp/repo", companyId: "c", agentId: "a", agentName: "n", entrySource: "../secret", sourcePrefix: "agents/a", supportingFiles: [], trackingRef: "refs/heads/main" })).toThrow("Invalid mapped path");
+  });
+});

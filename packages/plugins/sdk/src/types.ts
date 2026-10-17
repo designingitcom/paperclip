@@ -1658,6 +1658,13 @@ export interface PluginApprovalsClient {
  * `agents.invoke` for write operations.
  */
 export interface PluginAgentsClient {
+  /** Managed text files, authorized as the current authenticated UI action user.
+   * Unavailable to background jobs, getData, and agent/system invocations. */
+  instructions: {
+    sourceSnapshot(input: { companyId: string; agentId: string; repositoryUrl: string; ref: string; paths: string[]; connectionId?: string }): Promise<{ commit: string; files: { path: string; content: string }[] }>;
+    read(input: { companyId: string; agentId: string; path: string }): Promise<{ path: string; content: string | null; contentHash: string | null }>;
+    write(input: { companyId: string; agentId: string; path: string; content: string; baseHash: string | null }): Promise<{ contentHash: string | null; changed: boolean }>;
+  };
   list(input: { companyId: string; status?: Agent["status"]; limit?: number; offset?: number }): Promise<Agent[]>;
   get(agentId: string, companyId: string): Promise<Agent | null>;
   /** Pause an agent. Throws if agent is terminated or not found. Requires `agents.pause`. */

@@ -31,6 +31,7 @@ import type { CreateIssueThreadInteraction, InviteJoinType, IssueDocumentSummary
 import { pluginOperationIssueOriginKind } from "@paperclipai/shared";
 import { companyService } from "./companies.js";
 import { agentService } from "./agents.js";
+import { pluginAgentInstructions } from "./plugin-agent-instructions.js";
 import { projectService } from "./projects.js";
 import { executionWorkspaceService } from "./execution-workspaces.js";
 import { issueService } from "./issues.js";
@@ -2777,6 +2778,9 @@ export function buildHostServices(
     },
 
     agents: {
+      instructionsRead: (params, context) => pluginAgentInstructions(db).read(params, context),
+      instructionsSourceSnapshot: (params, context) => pluginAgentInstructions(db).sourceSnapshot(params, context),
+      instructionsWrite: (params, context) => pluginAgentInstructions(db).write(params, context),
       async list(params) {
         const companyId = ensureCompanyId(params.companyId);
         await ensurePluginAvailableForCompany(companyId);

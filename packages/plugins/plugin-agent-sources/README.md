@@ -1,0 +1,80 @@
+# Agent Sources (owned-fork pilot)
+
+This is a custom plugin on a small native SDK extension, not upstream Paperclip
+GitHub skill sync. Requires this branch's `agents.instructions.read/write` host
+capabilities. Never configure a shared publisher token.
+
+An operator configures one company, a primary agent, repository and branch.
+Optional `additionalAgents` adds up to 19 explicit agent mappings sharing that
+company/repository/branch. Each entry contains `agentId`, `agentName`,
+`entrySource`, `sourcePrefix`, and `supportingFiles`. Existing single-agent
+configuration remains valid. The page selector clears previous selection and
+review on switching; each agent is checked and synced separately. Unknown or
+duplicate targets and cross-company overrides are rejected. This is not
+automatic discovery of every agent, and does not batch-publish agents.
+
+**Check
+for updates resolves the current GitHub branch and reads only mapped blobs at
+that immutable commit.** It reuses Paperclip's native GitHub connection grants
+for the acting user. No new token, repository archive, local checkout write or
+SSH credential is required. Private repositories need the user's existing
+authorized GitHub connection. A denied/failed fetch never falls back to stale
+local content. Only regular UTF-8 files are read; symlinks and submodules are
+rejected. Scripts are installed as text, never executed.
+
+An optional legacy/local mode remains when `repositoryUrl` is omitted: set
+`repoPath` and a full local `trackingRef`. That mode does not fetch remotely.
+
+The logged-in user's current native permissions authorize every read/write.
+Plans are user/company-bound, expire after ten minutes, are single-use, and are
+lost on plugin restart. Changes start unchecked. Sync preflights selected live
+hashes, conditionally writes each file, then verifies actual readback. A failure
+can leave partial writes; the receipt distinguishes verified files from the
+unverified one. Refresh and review before retrying; no blind rollback.
+
+Pilot operator configuration (review before using):
+
+The pilot target must already use managed `AGENTS.md` as its actual instruction
+entry. Validate this before configuring it. This plugin does not convert legacy
+inline prompts, external instruction files, or custom entry-file agents.
+
+```json
+{
+  "repositoryUrl": "https://github.com/designingitcom/agentic-os",
+  "companyId": "9dbbcdb3-7a5f-4882-af7a-a5eca20423ac",
+  "agentId": "94657e2f-c90a-4d29-8499-0e5a6264535e",
+  "agentName": "WordPress Update Agent",
+  "trackingRef": "main",
+  "entrySource": "paperclip/prompts/support/agents/wordpress-update-agent.AGENTS.md",
+  "sourcePrefix": "paperclip/prompts/support/agents/wordpress-update-agent",
+  "supportingFiles": ["scripts/find_findings.py", "scripts/parse_findings.py", "scripts/run_updates.py", "scripts/gitlab_mr.py", "scripts/wp-update.py", "scripts/health_check.sh", "scripts/screenshot.py", "scripts/update_report.py", "scripts/README.md"]
+}
+```
+
+Build with `pnpm --filter @designingit/plugin-agent-sources build`. Install via
+Paperclip's native local plugin installer after the matching core/SDK build is
+deployed. No database migration. Do not restart production with active runs.
+Rollback: disable/uninstall the plugin; core methods are additive. Installed
+agent content is not automatically reverted.
+
+Not yet provided: arbitrary GitHub repository picker, automatic merge-triggered publish,
+automatic agent discovery, receipt history UI, binary files, delete,
+dependency installation or settings/adapter/model changes. The local checkout
+must be trusted in local mode and only instance operators may configure mappings.
+
+The latest content-free receipt per mapped agent is persisted in plugin company
+state, including the source commit, verified paths and acting user. Native file
+audit events remain the authoritative per-write audit trail.
+
+The sample supporting paths were reconciled to the canonical manifest on
+2026-10-16 (nine supporting files, not the older six). Confirm the live agent ID
+and display name before production setup. A preview is not permission to
+overwrite later live changes; review every difference with the owner.
+# UI consistency (0.2.1)
+
+## Company selector dependency (0.3.0)
+
+Requires the host UI/SDK company-context bridge carried in this PR: authorized company metadata from native CompanyContext and bounded navigateToCompany. Do not replace this with worker companies.list, which is plugin-visible rather than current-user filtered. Company switching navigates through the native router, remounts the review, and retains native action/company/agent authorization. Unmapped companies show an empty state; configuring the selector does not automatically import their agents. Existing per-company plugin configuration remains the mapping source. A backend/API restart or database migration is not required for this client-side bridge update.
+
+The plugin sidebar uses the host SidebarNavItem token classes and Lucide icon family, with route-aware active styling. The SDK does not export SidebarNavItem itself, so this small presentation adapter uses supported host navigation/location hooks rather than importing private host components. Page copy uses host text tokens and the existing max-w-4xl content width. No core restart or agent-content changes are needed for this UI-only plugin update.
+

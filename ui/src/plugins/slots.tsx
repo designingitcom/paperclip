@@ -39,6 +39,7 @@ import type {
 } from "@paperclipai/shared";
 import { pluginsApi, type PluginUiContribution } from "@/api/plugins";
 import { authApi } from "@/api/auth";
+import { useOptionalCompany } from "@/context/CompanyContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 import {
@@ -818,12 +819,18 @@ function PluginBridgeScope({
   context: PluginSlotContext;
   children: ReactNode;
 }) {
+  const companyContext = useOptionalCompany();
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
     queryFn: () => authApi.getSession(),
   });
   const userId = session?.user?.id ?? session?.session?.userId ?? null;
-  const hostContext = useMemo(() => slotContextToHostContext(context, userId), [context, userId]);
+  const hostContext = useMemo(() => ({
+    ...slotContextToHostContext(context, userId),
+    companies: (companyContext?.companies ?? []).filter(company => company.status !== "archived").map(({ id, name, issuePrefix }) => ({ id, name, issuePrefix })),
+    companiesLoading: companyContext?.loading ?? false,
+    companiesUnavailable: companyContext?.companyListUnavailable ?? false,
+  }), [context, userId, companyContext?.companies, companyContext?.loading, companyContext?.companyListUnavailable]);
   const value = useMemo(() => ({ pluginId, hostContext }), [pluginId, hostContext]);
 
   return (
