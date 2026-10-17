@@ -87,6 +87,10 @@ export interface PluginBridgeError {
  * @see PLUGIN_SPEC.md §19 — UI Extension Model
  */
 export interface PluginHostContext {
+  /** Current user's authorized, non-archived companies. Presentation only, never authorization. */
+  companies?: ReadonlyArray<{ id: string; name: string; issuePrefix: string }>;
+  companiesLoading?: boolean;
+  companiesUnavailable?: boolean;
   /** UUID of the currently active company, if any. */
   companyId: string | null;
   /** URL prefix for the current company (e.g. `"my-company"`). */
@@ -195,6 +199,8 @@ export interface HostLocation {
  * Host-managed navigation helpers for plugin UI.
  */
 export interface HostNavigation {
+  /** Switch via the native router, restricted to the current user's company list. */
+  navigateToCompany?(companyId: string, path: string): void;
   /**
    * Resolve a Paperclip-internal path using the active company prefix.
    *

@@ -5,8 +5,10 @@ const plugin = definePlugin({
     const plans = new Map<string, { userId: string; config: string; plan: Plan }>();
     ctx.actions.register("sources", async (_params, action) => {
       if (action.actor.type !== "user" || !action.actor.userId || !action.companyId) throw new Error("Select a company and sign in");
-      const sources = configuredSources(await ctx.config.get(action.companyId));
-      if (sources[0].companyId !== action.companyId) throw new Error("Select the configured company");
+      const raw = await ctx.config.get(action.companyId);
+      if (!raw.companyId || raw.companyId !== action.companyId) return [];
+      const sources = configuredSources(raw);
+      if (sources[0].companyId !== action.companyId) return [];
       return sources.map(({ agentId, agentName }) => ({ agentId, agentName }));
     });
     ctx.actions.register("check", async (params, action) => {

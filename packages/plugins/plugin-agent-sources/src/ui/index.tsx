@@ -13,8 +13,11 @@ export function SidebarLink(_props: PluginSidebarProps) {
   return <a {...navigation.linkProps("/agent-sources")} aria-current={active ? "page" : undefined} className={`flex items-center gap-2.5 mx-2 rounded-lg px-2 py-1.5 pointer-coarse:py-1 text-(length:--text-compact) font-medium transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}><span data-slot="sidebar-nav-icon" className="relative shrink-0"><GitPullRequest className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 flex-1 truncate">Agent Sources</span></a>;
 }
 export function AgentSourcesPage() {
-  const { companyId } = useHostContext();
-  return <AgentSourcesSelector key={companyId ?? "no-company"} />;
+  const { companyId, companies, companiesLoading, companiesUnavailable } = useHostContext();
+  const navigation = useHostNavigation();
+  return <div className="max-w-4xl"><div className="px-6 pt-6 text-sm"><label className="flex flex-wrap items-center gap-3">Company<select aria-label="Company" value={companyId ?? ""} disabled={companiesLoading || companiesUnavailable || !navigation.navigateToCompany} className="rounded-md border border-border bg-background text-foreground px-3 py-2 max-w-full" onChange={event => navigation.navigateToCompany?.(event.target.value, "/agent-sources")}>
+    {(companies ?? []).map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
+  </select></label>{companiesLoading && <p role="status">Loading your companies…</p>}{companiesUnavailable && <p role="alert">Could not load your companies. Retry using the organization switcher.</p>}{!navigation.navigateToCompany && <p role="status">Use the organization switcher to change company. This host needs the company navigation update.</p>}</div><AgentSourcesSelector key={`${companyId ?? "no-company"}`} /></div>;
 }
 function AgentSourcesSelector() {
   const list = usePluginAction("sources"), check = usePluginAction("check"), sync = usePluginAction("sync");

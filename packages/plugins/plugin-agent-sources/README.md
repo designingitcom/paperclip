@@ -72,5 +72,9 @@ and display name before production setup. A preview is not permission to
 overwrite later live changes; review every difference with the owner.
 # UI consistency (0.2.1)
 
+## Company selector dependency (0.3.0)
+
+Requires the host UI/SDK company-context bridge carried in this PR: authorized company metadata from native CompanyContext and bounded navigateToCompany. Do not replace this with worker companies.list, which is plugin-visible rather than current-user filtered. Company switching navigates through the native router, remounts the review, and retains native action/company/agent authorization. Unmapped companies show an empty state; configuring the selector does not automatically import their agents. Existing per-company plugin configuration remains the mapping source. A backend/API restart or database migration is not required for this client-side bridge update.
+
 The plugin sidebar uses the host SidebarNavItem token classes and Lucide icon family, with route-aware active styling. The SDK does not export SidebarNavItem itself, so this small presentation adapter uses supported host navigation/location hooks rather than importing private host components. Page copy uses host text tokens and the existing max-w-4xl content width. No core restart or agent-content changes are needed for this UI-only plugin update.
 

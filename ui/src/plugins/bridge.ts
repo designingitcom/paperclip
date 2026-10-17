@@ -37,6 +37,7 @@ import { pluginsApi } from "@/api/plugins";
 import { ApiError } from "@/api/client";
 import { useToastActions, type ToastInput } from "@/context/ToastContext";
 import { useSidebar } from "@/context/SidebarContext";
+import { useOptionalCompany } from "@/context/CompanyContext";
 import { isGlobalPath, normalizeCompanyPrefix } from "@/lib/company-routes";
 import { normalizeRememberedInstanceSettingsPath } from "@/lib/instance-settings";
 
@@ -85,6 +86,7 @@ export interface HostNavigationLinkProps {
 }
 
 export interface HostNavigation {
+  navigateToCompany?(companyId: string, path: string): void;
   resolveHref(to: string): string;
   navigate(to: string, options?: HostNavigationOptions): void;
   linkProps(to: string, options?: HostNavigationLinkOptions): HostNavigationLinkProps;
@@ -102,6 +104,9 @@ export interface HostLocation {
 // ---------------------------------------------------------------------------
 
 export interface PluginHostContext {
+  companies?: ReadonlyArray<{ id: string; name: string; issuePrefix: string }>;
+  companiesLoading?: boolean;
+  companiesUnavailable?: boolean;
   companyId: string | null;
   companyPrefix: string | null;
   projectId: string | null;
@@ -493,7 +498,14 @@ export function useHostContext(): PluginHostContext {
 // useHostNavigation — concrete implementation
 // ---------------------------------------------------------------------------
 
+export function resolveAuthorizedCompanyHref(companies: ReadonlyArray<{ id: string; issuePrefix: string; status?: string }>, companyId: string, path: string): string {
+  const company = companies.find(item => item.id === companyId && item.status !== "archived");
+  if (!company || !/^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/i.test(path)) throw new Error("Company or destination is unavailable");
+  return `/${normalizeCompanyPrefix(company.issuePrefix)}${path}`;
+}
+
 export function useHostNavigation(): HostNavigation {
+  const companyContext = useOptionalCompany();
   const { hostContext } = usePluginBridgeContext();
   const routerNavigate = useRouterNavigate();
   const { isMobile, setSidebarOpen } = useSidebar();
@@ -537,13 +549,18 @@ export function useHostNavigation(): HostNavigation {
     [navigate, resolveHref],
   );
 
+  const navigateToCompany = useCallback((companyId: string, path: string) => {
+    routerNavigate(resolveAuthorizedCompanyHref(companyContext?.companies ?? [], companyId, path));
+    if (isMobile) setSidebarOpen(false);
+  }, [companyContext?.companies, routerNavigate, isMobile, setSidebarOpen]);
   return useMemo(
     () => ({
       resolveHref,
       navigate,
       linkProps,
+      navigateToCompany,
     }),
-    [linkProps, navigate, resolveHref],
+    [linkProps, navigate, resolveHref, navigateToCompany],
   );
 }
 
