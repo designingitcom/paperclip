@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { diffLines } from "diff";
-import { usePluginAction, useHostContext, useHostNavigation, type PluginSidebarProps } from "@paperclipai/plugin-sdk/ui";
+import { GitPullRequest } from "lucide-react";
+import { usePluginAction, useHostContext, useHostNavigation, useHostLocation, type PluginSidebarProps } from "@paperclipai/plugin-sdk/ui";
 import type { Plan, Receipt } from "../engine.js";
 const errorMessage = (error: unknown, fallback: string) => error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : fallback;
 
 export function SidebarLink(_props: PluginSidebarProps) {
   const navigation = useHostNavigation();
-  return <a {...navigation.linkProps("/agent-sources")} className="flex items-center px-3 py-2 text-sm text-foreground">Agent Sources</a>;
+  const location = useHostLocation();
+  const active = location.pathname === navigation.resolveHref("/agent-sources");
+  // Match the host SidebarNavItem; the SDK does not expose that component.
+  return <a {...navigation.linkProps("/agent-sources")} aria-current={active ? "page" : undefined} className={`flex items-center gap-2.5 mx-2 rounded-lg px-2 py-1.5 pointer-coarse:py-1 text-(length:--text-compact) font-medium transition-colors ${active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}><span data-slot="sidebar-nav-icon" className="relative shrink-0"><GitPullRequest className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 flex-1 truncate">Agent Sources</span></a>;
 }
 export function AgentSourcesPage() {
   const { companyId } = useHostContext();
@@ -31,10 +35,10 @@ function AgentSourcesSelector() {
   if (error) return <section className="p-6 space-y-3"><h1 className="text-xl font-semibold">Agent Sources</h1><p role="alert">{error}</p><button className="rounded-md border border-border px-3 py-2" onClick={() => setAttempt(value => value + 1)}>Retry</button></section>;
   if (!sources) return <p className="p-6" role="status">Loading configured agents…</p>;
   if (!sources.length) return <p className="p-6" role="status">No Git-managed agents are configured. Ask an administrator to add a mapping in Agent Sources settings.</p>;
-  return <>
+  return <div className="max-w-4xl text-sm">
     <div className="px-6 pt-6"><label className="flex flex-wrap items-center gap-3 text-sm">Git-managed agent<select aria-label="Git-managed agent" disabled={working} className="rounded-md border border-border bg-background text-foreground px-3 py-2 max-w-full focus-visible:outline focus-visible:outline-ring disabled:opacity-50" value={agentId} onChange={event => setAgentId(event.target.value)}>{sources.map(source => <option key={source.agentId} value={source.agentId}>{source.agentName}</option>)}</select></label><p className="text-xs text-muted-foreground mt-2">Changing agents clears the current review. Each agent is checked and synced separately.</p></div>
     <AgentSourcesView key={agentId} onBusyChange={setWorking} check={() => check({ agentId }) as Promise<Plan>} sync={(params) => sync(params) as Promise<Receipt>} />
-  </>;
+  </div>;
 }
 export function AgentSourcesView({ check, sync, onBusyChange }: { check: () => Promise<Plan>; sync: (params: { planId: string; selected: string[]; reviewed: boolean }) => Promise<Receipt>; onBusyChange?: (busy: boolean) => void }) {
   const [plan, setPlan] = useState<Plan | null>(null), [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -58,9 +62,9 @@ export function AgentSourcesView({ check, sync, onBusyChange }: { check: () => P
       <div><h1 className="text-xl font-semibold">Agent Sources</h1><p className="text-sm text-muted-foreground">Review Git changes before updating installed agent files.</p></div>
       <button className={button} disabled={busy} onClick={() => void checkUpdates()}>{busy ? "Working…" : "Check for updates"}</button>
     </header>
-    <p className="text-sm text-muted-foreground">Check reads the configured GitHub branch using your authorized Paperclip connection, or the configured local Git ref. Review the exact commit before syncing. This does not update skills, adapters, models or run scripts.</p>
+    <p className="text-sm text-muted-foreground">Compare Git with this agent’s installed files. Review changes before syncing. Skills, adapters and models stay unchanged; scripts are not executed.</p>
     {error && <div role="alert" className="border border-destructive rounded-md p-3 text-destructive">{error}</div>}
-    {!plan && !receipt && !error && <p role="status">Check for updates to compare the configured agent with the deployed Git snapshot. Nothing is selected or changed automatically.</p>}
+    {!plan && !receipt && !error && <p role="status" className="text-sm text-muted-foreground">No changes selected. Choose Check for updates to begin.</p>}
     {plan && <>
       <p className="text-sm break-all">Source: {plan.sourceLabel ?? "Configured Git source"}</p>
       <div className="space-y-1"><h2 className="font-semibold">{plan.agentName}</h2><p className="text-sm break-all">Company <code>{plan.companyId}</code> · Agent <code>{plan.agentId}</code></p><p className="text-sm break-all"><code>{plan.trackingRef}</code> · Commit <code>{plan.commit}</code></p><p className="text-sm text-muted-foreground">Review expires {new Date(plan.expiresAt).toLocaleTimeString()}. Only checked files will be synced.</p></div>

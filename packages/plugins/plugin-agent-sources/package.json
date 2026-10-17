@@ -1,11 +1,29 @@
 {
   "name": "@designingit/plugin-agent-sources",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
-  "scripts": { "build": "node esbuild.config.mjs", "typecheck": "tsc --noEmit" },
-  "paperclipPlugin": { "manifest": "./dist/manifest.js", "worker": "./dist/worker.js", "ui": "./dist/ui/" },
-  "dependencies": { "@paperclipai/plugin-sdk": "workspace:*", "diff": "9.0.0" },
-  "devDependencies": { "@types/node": "^24.0.0", "@types/react": "^19.2.18", "esbuild": "^0.28.2", "typescript": "^7.0.2" },
-  "peerDependencies": { "react": ">=18" }
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "paperclipPlugin": {
+    "manifest": "./dist/manifest.js",
+    "worker": "./dist/worker.js",
+    "ui": "./dist/ui/"
+  },
+  "dependencies": {
+    "@paperclipai/plugin-sdk": "workspace:*",
+    "diff": "9.0.0",
+    "lucide-react": "1.38.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.18",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
 }

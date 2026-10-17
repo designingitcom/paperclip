@@ -1,6 +1,6 @@
 import type { PaperclipPluginManifestV1 } from "@paperclipai/plugin-sdk";
 export default {
-  id: "designingit.agent-sources", apiVersion: 1, version: "0.2.0",
+  id: "designingit.agent-sources", apiVersion: 1, version: "0.2.1",
   displayName: "Agent Sources", description: "Review and sync Git-owned agent instruction files.",
   author: "DesigningIT", categories: ["connector"],
   capabilities: ["agents.instructions.read", "agents.instructions.write", "plugin.state.write", "ui.sidebar.register", "ui.page.register"],

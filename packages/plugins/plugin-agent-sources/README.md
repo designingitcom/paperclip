@@ -70,3 +70,7 @@ The sample supporting paths were reconciled to the canonical manifest on
 2026-10-16 (nine supporting files, not the older six). Confirm the live agent ID
 and display name before production setup. A preview is not permission to
 overwrite later live changes; review every difference with the owner.
+# UI consistency (0.2.1)
+
+The plugin sidebar uses the host SidebarNavItem token classes and Lucide icon family, with route-aware active styling. The SDK does not export SidebarNavItem itself, so this small presentation adapter uses supported host navigation/location hooks rather than importing private host components. Page copy uses host text tokens and the existing max-w-4xl content width. No core restart or agent-content changes are needed for this UI-only plugin update.
+
