@@ -14,6 +14,27 @@ export interface SourceConfig { repoPath: string; repositoryUrl?: string; connec
 export interface PlannedFile { path: string; sourcePath: string; before: string | null; after: string; baseHash: string | null; targetHash: string; changed: boolean }
 export interface Plan { id: string; companyId: string; agentId: string; agentName: string; commit: string; trackingRef: string; sourceLabel?: string; expiresAt: string; files: PlannedFile[] }
 export interface Receipt { commit: string; completed: string[]; failed: string | null; message: string; checkedAt: string }
+export function configuredSources(raw: Record<string, unknown>): SourceConfig[] {
+  const primary = validateConfig(raw);
+  const additional = raw.additionalAgents ?? [];
+  if (!Array.isArray(additional) || additional.length > 19) throw new Error("Configure at most 20 agents per company");
+  const sources = [primary, ...additional.map(value => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid additional agent mapping");
+    const item = value as Record<string, unknown>;
+    if (Object.keys(item).some(key => !["agentId", "agentName", "sourcePrefix", "entrySource", "supportingFiles"].includes(key))) throw new Error("Additional agents must share the configured company and repository");
+    for (const key of ["agentId", "agentName", "sourcePrefix", "entrySource", "supportingFiles"]) if (!(key in item)) throw new Error(`Additional agent missing: ${key}`);
+    return validateConfig({ ...raw, ...item });
+  })];
+  if (new Set(sources.map(source => source.agentId)).size !== sources.length) throw new Error("Duplicate agent mapping");
+  return sources;
+}
+export function selectSource(raw: Record<string, unknown>, companyId: string, agentId?: string): SourceConfig {
+  const sources = configuredSources(raw);
+  if (sources[0].companyId !== companyId) throw new Error("Select the configured company");
+  const selected = agentId === undefined ? sources[0] : sources.find(source => source.agentId === agentId);
+  if (!selected) throw new Error("Agent is not configured for this source");
+  return selected;
+}
 export function validateConfig(raw: Record<string, unknown>): SourceConfig {
   for (const key of ["companyId", "agentId", "agentName", "sourcePrefix", "entrySource", "trackingRef"]) if (typeof raw[key] !== "string" || !raw[key]) throw new Error(`Operator configuration missing: ${key}`);
   if (!Array.isArray(raw.supportingFiles) || raw.supportingFiles.some(x => typeof x !== "string") || raw.supportingFiles.length > 30) throw new Error("Configure at most 30 supporting files");

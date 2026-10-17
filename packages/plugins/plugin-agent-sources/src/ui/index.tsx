@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { diffLines } from "diff";
-import { usePluginAction, useHostNavigation, type PluginSidebarProps } from "@paperclipai/plugin-sdk/ui";
+import { usePluginAction, useHostContext, useHostNavigation, type PluginSidebarProps } from "@paperclipai/plugin-sdk/ui";
 import type { Plan, Receipt } from "../engine.js";
 const errorMessage = (error: unknown, fallback: string) => error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : fallback;
 
@@ -9,13 +9,38 @@ export function SidebarLink(_props: PluginSidebarProps) {
   return <a {...navigation.linkProps("/agent-sources")} className="flex items-center px-3 py-2 text-sm text-foreground">Agent Sources</a>;
 }
 export function AgentSourcesPage() {
-  const check = usePluginAction("check"), sync = usePluginAction("sync");
-  return <AgentSourcesView check={() => check() as Promise<Plan>} sync={(params) => sync(params) as Promise<Receipt>} />;
+  const { companyId } = useHostContext();
+  return <AgentSourcesSelector key={companyId ?? "no-company"} />;
 }
-export function AgentSourcesView({ check, sync }: { check: () => Promise<Plan>; sync: (params: { planId: string; selected: string[]; reviewed: boolean }) => Promise<Receipt> }) {
+function AgentSourcesSelector() {
+  const list = usePluginAction("sources"), check = usePluginAction("check"), sync = usePluginAction("sync");
+  const [sources, setSources] = useState<Array<{ agentId: string; agentName: string }> | null>(null);
+  const [agentId, setAgentId] = useState("");
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null), [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let current = true;
+    setError(null); setSources(null);
+    void list().then(value => {
+      if (!current) return;
+      const next = value as Array<{ agentId: string; agentName: string }>;
+      setSources(next); setAgentId(next[0]?.agentId ?? "");
+    }).catch(e => { if (current) setError(errorMessage(e, "Could not load configured agents. Retry or ask an administrator to configure Agent Sources.")); });
+    return () => { current = false; };
+  }, [list, attempt]);
+  if (error) return <section className="p-6 space-y-3"><h1 className="text-xl font-semibold">Agent Sources</h1><p role="alert">{error}</p><button className="rounded-md border border-border px-3 py-2" onClick={() => setAttempt(value => value + 1)}>Retry</button></section>;
+  if (!sources) return <p className="p-6" role="status">Loading configured agents…</p>;
+  if (!sources.length) return <p className="p-6" role="status">No Git-managed agents are configured. Ask an administrator to add a mapping in Agent Sources settings.</p>;
+  return <>
+    <div className="px-6 pt-6"><label className="flex flex-wrap items-center gap-3 text-sm">Git-managed agent<select aria-label="Git-managed agent" disabled={working} className="rounded-md border border-border bg-background text-foreground px-3 py-2 max-w-full focus-visible:outline focus-visible:outline-ring disabled:opacity-50" value={agentId} onChange={event => setAgentId(event.target.value)}>{sources.map(source => <option key={source.agentId} value={source.agentId}>{source.agentName}</option>)}</select></label><p className="text-xs text-muted-foreground mt-2">Changing agents clears the current review. Each agent is checked and synced separately.</p></div>
+    <AgentSourcesView key={agentId} onBusyChange={setWorking} check={() => check({ agentId }) as Promise<Plan>} sync={(params) => sync(params) as Promise<Receipt>} />
+  </>;
+}
+export function AgentSourcesView({ check, sync, onBusyChange }: { check: () => Promise<Plan>; sync: (params: { planId: string; selected: string[]; reviewed: boolean }) => Promise<Receipt>; onBusyChange?: (busy: boolean) => void }) {
   const [plan, setPlan] = useState<Plan | null>(null), [receipt, setReceipt] = useState<Receipt | null>(null);
   const [selected, setSelected] = useState<string[]>([]), [reviewed, setReviewed] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   const button = "rounded-md border border-border px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-ring";
   async function checkUpdates() {
     setBusy(true); setError(null); setPlan(null); setSelected([]); setReviewed(false); setReceipt(null);

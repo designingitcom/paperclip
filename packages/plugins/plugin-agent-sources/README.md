@@ -4,7 +4,16 @@ This is a custom plugin on a small native SDK extension, not upstream Paperclip
 GitHub skill sync. Requires this branch's `agents.instructions.read/write` host
 capabilities. Never configure a shared publisher token.
 
-An operator configures one company, one agent, repository and branch. **Check
+An operator configures one company, a primary agent, repository and branch.
+Optional `additionalAgents` adds up to 19 explicit agent mappings sharing that
+company/repository/branch. Each entry contains `agentId`, `agentName`,
+`entrySource`, `sourcePrefix`, and `supportingFiles`. Existing single-agent
+configuration remains valid. The page selector clears previous selection and
+review on switching; each agent is checked and synced separately. Unknown or
+duplicate targets and cross-company overrides are rejected. This is not
+automatic discovery of every agent, and does not batch-publish agents.
+
+**Check
 for updates resolves the current GitHub branch and reads only mapped blobs at
 that immutable commit.** It reuses Paperclip's native GitHub connection grants
 for the acting user. No new token, repository archive, local checkout write or
@@ -49,7 +58,7 @@ Rollback: disable/uninstall the plugin; core methods are additive. Installed
 agent content is not automatically reverted.
 
 Not yet provided: arbitrary GitHub repository picker, automatic merge-triggered publish,
-multi-agent mapping editor, receipt history UI, binary files, delete,
+automatic agent discovery, receipt history UI, binary files, delete,
 dependency installation or settings/adapter/model changes. The local checkout
 must be trusted in local mode and only instance operators may configure mappings.
 

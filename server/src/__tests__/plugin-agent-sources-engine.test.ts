@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { applyPlan, makePlan, validateConfig, type Plan } from "../../../packages/plugins/plugin-agent-sources/src/engine.js";
+import { applyPlan, makePlan, validateConfig, configuredSources, selectSource, type Plan } from "../../../packages/plugins/plugin-agent-sources/src/engine.js";
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 function fixture() {
   const content = new Map([["AGENTS.md", "old"], ["scripts/helper.py", "old helper"]]);
@@ -16,6 +16,21 @@ function fixture() {
   return { content, files, plan };
 }
 describe("Agent Sources reviewed sync", () => {
+  const primary = { repositoryUrl: "https://github.com/example/repo", companyId: "company", agentId: "first", agentName: "First", trackingRef: "main", sourcePrefix: "first", entrySource: "first.md", supportingFiles: [] };
+  const second = { agentId: "second", agentName: "Second", sourcePrefix: "second", entrySource: "second.md", supportingFiles: ["helper.md"] };
+  it("preserves the single-agent mapping and selects only explicitly configured agents", () => {
+    expect(configuredSources(primary)).toHaveLength(1);
+    const raw = { ...primary, additionalAgents: [second] };
+    expect(selectSource(raw, "company", "second")).toMatchObject({ ...second, companyId: "company", repositoryUrl: primary.repositoryUrl });
+    expect(() => selectSource(raw, "company", "unknown")).toThrow("not configured");
+    expect(() => selectSource(raw, "other", "second")).toThrow("configured company");
+  });
+  it("rejects duplicate, cross-company, unbounded and incomplete mappings", () => {
+    expect(() => configuredSources({ ...primary, additionalAgents: [{ ...second, agentId: "first" }] })).toThrow("Duplicate");
+    expect(() => configuredSources({ ...primary, additionalAgents: [{ ...second, companyId: "other" }] })).toThrow("share");
+    expect(() => configuredSources({ ...primary, additionalAgents: Array(20).fill(second) })).toThrow("20 agents");
+    expect(() => configuredSources({ ...primary, additionalAgents: [{ agentId: "second" }] })).toThrow("missing");
+  });
   it("maps only configured GitHub files and records source identity", async () => {
     const f = fixture();
     const config = validateConfig({ repositoryUrl: "https://github.com/example/repo", companyId: "company", agentId: "agent", agentName: "Fixture", trackingRef: "main", sourcePrefix: "agent", entrySource: "entry.md", supportingFiles: ["scripts/helper.py"] });
