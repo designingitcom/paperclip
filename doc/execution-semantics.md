@@ -203,6 +203,17 @@ launch command uses the host's absolute Node executable even when the adapter's
 launch environment is sanitized for a remote sandbox; the sandbox PATH remains
 owned by the sandbox image.
 
+### Claude login classification
+
+The local Claude adapter classifies login failures from CLI stderr and the
+terminal fields of a failed result. With no terminal result, it also accepts
+plain-text CLI startup login prompts. JSON assistant/tool events and successful
+answers are not authentication evidence. Their quoted login instructions must
+not turn max-turn exhaustion or a transient provider failure into a Connections
+gate. Genuine terminal or stderr authentication errors still take precedence,
+including expired OAuth tokens alongside max-turn evidence. This classification
+does not bypass a human connection gate or change credential state by itself.
+
 ### Pre-dispatch configuration validation
 
 Pre-dispatch configuration validation is a distinct gate that runs after ownership and checkout are resolved but before the control plane actually dispatches a run.

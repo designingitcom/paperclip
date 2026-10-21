@@ -14,6 +14,107 @@ import {
 } from "./parse.js";
 
 describe("detectClaudeLoginRequired", () => {
+  const loginNoise = "401 Unauthorized: login required. Please run /login https://auth.example.test/quoted";
+
+  it.each(["assistant", "user", "tool", "stream_event"])(
+    "ignores login instructions inside a %s event when max turns are reached",
+    (type) => {
+      const terminal = {
+        type: "result",
+        is_error: true,
+        subtype: "error_max_turns",
+        errors: ["Reached maximum number of turns (25)"],
+      };
+      const stdout = [
+        {
+          type,
+          message: { content: [
+            { type: "text", text: loginNoise },
+            { type: "tool_result", content: loginNoise },
+          ] },
+          error: "unauthorized",
+        },
+        terminal,
+      ].map((event) => JSON.stringify(event)).join("\n");
+      const parsed = parseClaudeStreamJson(stdout).resultJson;
+      expect(detectClaudeLoginRequired({ parsed, stdout, stderr: "" }))
+        .toEqual({ requiresLogin: false, loginUrl: null });
+    },
+  );
+
+  it("ignores JSON transcript login markers when a process stops before a result", () => {
+    const stdout = JSON.stringify({
+      type: "user",
+      message: { content: [{ type: "tool_result", content: loginNoise, is_error: true }] },
+    });
+    expect(detectClaudeLoginRequired({ parsed: null, stdout, stderr: "" }))
+      .toEqual({ requiresLogin: false, loginUrl: null });
+  });
+
+  it("ignores legacy login words in a successful result", () => {
+    const parsed = { type: "result", subtype: "success", is_error: false, result: loginNoise };
+    expect(detectClaudeLoginRequired({ parsed, stdout: JSON.stringify(parsed), stderr: "" }))
+      .toEqual({ requiresLogin: false, loginUrl: null });
+  });
+
+  it.each(["result", "error", "errors"])(
+    "keeps a real failed terminal %s login error",
+    (field) => {
+      const parsed = {
+        type: "result",
+        is_error: true,
+        [field]: field === "errors" ? ["Please run /login"] : "Please run /login",
+      };
+      expect(detectClaudeLoginRequired({ parsed, stdout: JSON.stringify(parsed), stderr: "" }).requiresLogin).toBe(true);
+    },
+  );
+
+  it.each(["stdout", "stderr"])("keeps a plain CLI startup login prompt on %s", (channel) => {
+    expect(detectClaudeLoginRequired({
+      parsed: null,
+      stdout: "",
+      stderr: "",
+      [channel]: "Please log in at https://claude.ai/login",
+    })).toEqual({ requiresLogin: true, loginUrl: "https://claude.ai/login" });
+  });
+
+  it("does not let max turns suppress a real terminal auth error", () => {
+    expect(detectClaudeLoginRequired({
+      parsed: {
+        is_error: true,
+        subtype: "error_max_turns",
+        errors: ["Reached maximum number of turns (25)", "OAuth access token expired. Please run /login"],
+      },
+      stdout: "",
+      stderr: "",
+    }).requiresLogin).toBe(true);
+  });
+
+  it("keeps genuine expired OAuth stderr even with a max-turn terminal result", () => {
+    expect(detectClaudeLoginRequired({
+      parsed: { is_error: true, subtype: "error_max_turns", errors: ["Reached maximum number of turns (25)"] },
+      stdout: "", stderr: "Failed to authenticate: OAuth access token expired.",
+    }).requiresLogin).toBe(true);
+  });
+
+  it("keeps transient failures transient despite legacy login words in tool output", () => {
+    const input = {
+      parsed: { is_error: true, subtype: "error_during_execution", errors: ["API Error: 503 service unavailable"] },
+      stdout: JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: loginNoise }] } }),
+      stderr: "",
+    };
+    expect(detectClaudeLoginRequired(input).requiresLogin).toBe(false);
+    expect(isClaudeTransientUpstreamError(input)).toBe(true);
+  });
+
+  it("does not use a quoted transcript URL for a genuine CLI login error", () => {
+    expect(detectClaudeLoginRequired({
+      parsed: null,
+      stdout: JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: loginNoise }] } }),
+      stderr: "Please log in at https://claude.ai/login",
+    })).toEqual({ requiresLogin: true, loginUrl: "https://claude.ai/login" });
+  });
+
   it("classifies Claude's invalid API key login prompt as auth required", () => {
     expect(
       detectClaudeLoginRequired({
