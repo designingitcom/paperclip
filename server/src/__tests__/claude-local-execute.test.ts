@@ -15,11 +15,16 @@ import {
 
 async function writeFailingClaudeCommand(
   commandPath: string,
-  options: { resultEvent: Record<string, unknown>; exitCode?: number },
+  options: {
+    resultEvent: Record<string, unknown>;
+    exitCode?: number;
+    streamEvents?: Record<string, unknown>[];
+  },
 ): Promise<void> {
   const payload = JSON.stringify(options.resultEvent);
   const exit = options.exitCode ?? 1;
   const script = `#!/usr/bin/env node
+for (const event of ${JSON.stringify(options.streamEvents ?? [])}) console.log(JSON.stringify(event));
 console.log(${JSON.stringify(payload)});
 process.exit(${exit});
 `;
@@ -695,18 +700,24 @@ describe("claude execute", () => {
     }
   });
 
-  it("normalizes max-turn exhaustion into scheduler stop metadata", async () => {
+  it("normalizes max-turn exhaustion despite quoted login instructions in tool output", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-claude-exec-max-turns-"));
     const resultEvent = {
       type: "result",
       subtype: "error_max_turns",
       session_id: "11111111-1111-4111-8111-111111111111",
       is_error: true,
-      result: "Maximum turns reached.",
+      errors: ["Reached maximum number of turns (25)"],
       usage: { input_tokens: 1, cache_read_input_tokens: 0, output_tokens: 1 },
     };
     const { workspace, commandPath, restore } = await setupExecuteEnv(root, {
-      commandWriter: (commandPath) => writeFailingClaudeCommand(commandPath, { resultEvent }),
+      commandWriter: (commandPath) => writeFailingClaudeCommand(commandPath, {
+        resultEvent,
+        streamEvents: [
+          { type: "assistant", message: { content: [{ type: "text", text: "Check whether unauthorized actions return login required." }] } },
+          { type: "user", message: { content: [{ type: "tool_result", content: "Quoted documentation: Please run /login", is_error: true }] } },
+        ],
+      }),
     });
 
     try {
